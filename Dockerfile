@@ -41,7 +41,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # so they are accessible system-wide by any user (including the unprivileged
 # nexus user we create below).
 COPY --from=builder /root/.local /usr/local
-ENV PYTHONUNBUFFERED=1
+ENV PYTHONUNBUFFERED=1 \
+    PORT=8001
 
 # Create the non-root user so the app doesn't run as root.
 RUN groupadd --system nexus && \
