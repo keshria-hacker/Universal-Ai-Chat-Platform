@@ -7,6 +7,7 @@ import httpx
 import litellm
 
 from .base import BaseProvider, ModelInfo
+from .litellm_fallback import REASONING_PREFIX
 
 
 class AnthropicProvider(BaseProvider):
@@ -92,6 +93,14 @@ class AnthropicProvider(BaseProvider):
         async for chunk in response:
             if not chunk.choices:
                 continue
-            content = chunk.choices[0].delta.content or ""
+
+            delta = chunk.choices[0].delta
+
+            # Reasoning content (extended thinking) — emits before content
+            rc = getattr(delta, 'reasoning_content', None)
+            if rc:
+                yield REASONING_PREFIX + rc
+
+            content = delta.content or ""
             if content:
                 yield content

@@ -5,6 +5,7 @@
  */
 
 import { DEFAULT_SETTINGS, CHAT_BUCKETS, PROVIDER_COLORS } from '../shared/constants.js';
+import { bucketFor, hexToRgb } from '../shared/utils.js';
 
 /**
  * Create a reactive signal.
@@ -191,9 +192,6 @@ export function getChatBuckets(chats = getChats()) {
 
   return buckets;
 }
-
-// Need to import bucketFor - adding it here
-import { bucketFor, hexToRgb } from '../shared/utils.js';
 
 /**
  * Filter chats by search query and return bucketed.

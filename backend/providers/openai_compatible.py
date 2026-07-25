@@ -8,6 +8,7 @@ from typing import Any
 import httpx
 
 from .base import NON_CHAT_MARKERS, BaseProvider, ModelInfo
+from .litellm_fallback import REASONING_PREFIX
 
 
 class OpenAICompatibleProvider(BaseProvider):
@@ -113,7 +114,15 @@ class OpenAICompatibleProvider(BaseProvider):
         async for chunk in response:
             if not chunk.choices:
                 continue
-            content = chunk.choices[0].delta.content or ""
+
+            delta = chunk.choices[0].delta
+
+            # Reasoning content (OpenAI o-series, etc.) — emits before content
+            rc = getattr(delta, 'reasoning_content', None)
+            if rc:
+                yield REASONING_PREFIX + rc
+
+            content = delta.content or ""
             if content:
                 yield content
 

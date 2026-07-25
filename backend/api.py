@@ -16,6 +16,7 @@ import websearch
 from database import AsyncSessionLocal, get_db
 from document import extract_text, truncate_preview
 from prompt_injection import detect_injection, sanitize_for_log
+from providers import REASONING_PREFIX
 from rag import index_document, retrieve_relevant_chunks, TOP_K as RAG_TOP_K
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile
 from fastapi.responses import StreamingResponse
@@ -435,8 +436,12 @@ async def chat_stream(payload: ChatStreamRequest, db: AsyncSession = Depends(get
                     max_tokens=payload.max_tokens,
                     reasoning_effort=payload.reasoning_effort,
                 ):
-                    collected += token
-                    yield sse_event(token)
+                    # Reasoning tokens are prefixed by the provider
+                    if token.startswith(REASONING_PREFIX):
+                        yield sse_event(token[len(REASONING_PREFIX):], event="reasoning")
+                    else:
+                        collected += token
+                        yield sse_event(token)
 
                     now = time.monotonic()
                     if now - last_heartbeat >= SSE_HEARTBEAT_INTERVAL:

@@ -7,6 +7,12 @@ import litellm
 
 from .base import BaseProvider, ModelInfo
 
+# Sentinel prefix to distinguish reasoning tokens from content tokens
+# in the SSE stream. Providers yield reasoning_content with this prefix;
+# api.py strips it and emits an "event: reasoning" SSE frame instead.
+REASONING_PREFIX = "\x00REASONING\x00"
+_HAVE_REASONING = hasattr(litellm, 'Delta') or True  # litellm Delta always has reasoning_content
+
 
 class LiteLLMProvider(BaseProvider):
     """Generic provider using LiteLLM for any supported model."""
@@ -48,6 +54,15 @@ class LiteLLMProvider(BaseProvider):
         async for chunk in response:
             if not chunk.choices:
                 continue
-            content = chunk.choices[0].delta.content or ""
+
+            delta = chunk.choices[0].delta
+
+            # Some providers (OpenAI o-series, Claude extended thinking)
+            # emit reasoning_content in a separate chunk before content.
+            rc = getattr(delta, 'reasoning_content', None)
+            if rc:
+                yield REASONING_PREFIX + rc
+
+            content = delta.content or ""
             if content:
                 yield content

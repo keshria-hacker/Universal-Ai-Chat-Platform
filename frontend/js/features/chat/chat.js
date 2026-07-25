@@ -20,6 +20,11 @@ import { PROVIDER_COLORS, FILE_ICON_MAP } from '../../shared/constants.js';
 // DOM elements
 let elements = {};
 
+// Monotonic generation counter — prevents a stale minimum-duration
+// pause in one runGeneration() from resetting the button while a
+// newer generation is already in progress.
+let _genCounter = 0;
+
 /**
  * Initialize DOM references.
  */
@@ -56,6 +61,56 @@ export function initElements() {
     reasoningDropdown: $('#reasoningDropdown'),
     reasoningSelect: $('#reasoningSelect'),
   };
+}
+
+/**
+ * Set unified send/stop button visual state.
+ * - idle:       accent bg, ▲ send-arrow (sendBtn visible, stopBtn hidden)
+ * - generating: red bg, ⏹ stop icon   (stopBtn visible, sendBtn hidden)
+ *
+ * Uses TWO separate buttons and toggles visibility — eliminates all
+ * CSS-cascade issues, transition blending, and class-toggling bugs.
+ */
+function setSendButtonState(generating) {
+  const sendBtn = document.getElementById('sendBtn');
+  const stopBtn = document.getElementById('stopBtn');
+  if (!sendBtn || !stopBtn) return;
+
+  if (generating) {
+    sendBtn.style.display = 'none';
+    stopBtn.style.display = '';
+    document.title = '🔴 Generating… — Nexus';
+  } else {
+    sendBtn.style.display = '';
+    stopBtn.style.display = 'none';
+    document.title = 'Nexus — Universal AI Chat Platform';
+  }
+}
+
+/**
+ * Show or update the reasoning/thinking section inside an assistant message node.
+ * Reasoning content is rendered as a collapsible <details> block above the
+ * content area. It is ephemeral — not stored in message history.
+ */
+function showReasoningInNode(node, text) {
+  let section = node.querySelector('.msg-reasoning');
+  if (!section) {
+    section = document.createElement('div');
+    section.className = 'msg-reasoning';
+    section.innerHTML = `<details open>
+      <summary><i class="fa-solid fa-brain"></i> Reasoning</summary>
+      <div class="msg-reasoning-content"></div>
+    </details>`;
+    const body = node.querySelector('.msg-body');
+    const ref = body.querySelector('.msg-content') || body.querySelector('.typing-indicator');
+    if (ref) {
+      body.insertBefore(section, ref);
+    } else {
+      body.appendChild(section);
+    }
+  }
+  const contentEl = section.querySelector('.msg-reasoning-content');
+  if (contentEl) contentEl.textContent = text;
 }
 
 /**
@@ -286,6 +341,10 @@ export function handleSend() {
  */
 export function regenerate() {
   if (getIsGenerating() || !getLastUserText()) return;
+  if (!getSelectedModel()) {
+    showToast({ type: 'info', title: 'Model required', message: 'Select a model before regenerating.' });
+    return;
+  }
 
   // Remove last assistant message
   const msgs = getMessages();
@@ -303,14 +362,31 @@ export function regenerate() {
  * Core generation logic with SSE streaming.
  */
 export async function runGeneration({ content, fileIds, regenerate }) {
-  setIsGenerating(true);
-  elements.errorState?.classList.add('hidden');
-
   const model = getSelectedModel();
   if (!model) {
-    setIsGenerating(false);
+    showToast({ type: 'info', title: 'Model required', message: 'Select a model before sending a message.' });
     return;
   }
+
+  setIsGenerating(true);
+  setSendButtonState(true);
+  // Yield to the browser so it can paint the stop-button generating
+  // state BEFORE any stream I/O begins. Without this macrotask, the
+  // entire fetch + for-await-of loop can resolve in microtasks
+  // (especially when the response arrives as a single chunk), and the
+  // browser never gets a paint cycle — it sees the idle state only.
+  await new Promise((r) => setTimeout(r, 0));
+
+  // Record when the generating state was set so we can enforce a
+  // minimum display duration — guarantees the stop button stays
+  // visible long enough for the user to notice even on instant
+  // responses. 2000 ms ensures it's impossible to miss (a human
+  // blink is ~150 ms, reaction time ~200-300 ms).
+  const genStartedAt = Date.now();
+  const genId = ++_genCounter;
+  const MIN_STOP_VISIBLE_MS = 2000;
+
+  elements.errorState?.classList.add('hidden');
   const info = getProviderInfo(model);
 
   // Show typing indicator
@@ -342,6 +418,7 @@ export async function runGeneration({ content, fileIds, regenerate }) {
   };
 
   let collected = '';
+  let reasoningContent = '';
   let sawFirstToken = false;
   let newChatId = null;
   let streamError = null;
@@ -356,6 +433,11 @@ export async function runGeneration({ content, fileIds, regenerate }) {
       }
       if (event === 'chat_id') {
         newChatId = data;
+        continue;
+      }
+      if (event === 'reasoning') {
+        reasoningContent += data;
+        showReasoningInNode(typingNode, reasoningContent);
         continue;
       }
       if (data === '[DONE]') continue;
@@ -385,65 +467,88 @@ export async function runGeneration({ content, fileIds, regenerate }) {
     }
   }
 
-  if (streamError) {
-    typingNode.remove();
-    elements.errorState?.classList.remove('hidden');
-    const providerLabel = info.label || model.provider || 'Provider';
-    const modelName = model.name || 'Unknown model';
-    elements.errorState.querySelector('strong').textContent = `${providerLabel} — ${modelName} returned an error`;
+  try {
+    if (streamError) {
+      typingNode.remove();
+      elements.errorState?.classList.remove('hidden');
+      const providerLabel = info.label || model.provider || 'Provider';
+      const modelName = model.name || 'Unknown model';
+      elements.errorState.querySelector('strong').textContent = `${providerLabel} — ${modelName} returned an error`;
 
-    let guidance = streamError;
-    const errLow = streamError.toLowerCase();
-    if (errLow.includes('not available') || errLow.includes('model not found') || errLow.includes('does not exist') || errLow.includes('subscription')) {
-      guidance = `The model "${modelName}" is not available on ${providerLabel}. It may require a different subscription or have been deprecated. Try selecting a different model.`;
-    } else if (errLow.includes('invalid') || errLow.includes('expired') || errLow.includes('authentication') || errLow.includes('unauthorized') || errLow.includes('401') || errLow.includes('no api key')) {
-      guidance = `Your API key for ${providerLabel} appears to be invalid or missing. Open Settings → add or update your ${providerLabel} key.`;
-    } else if (errLow.includes('rate') || errLow.includes('429') || errLow.includes('quota')) {
-      guidance = `${providerLabel} rate limit or quota exceeded. Wait a moment and retry, or check your ${providerLabel} plan for usage limits.`;
-    } else if (errLow.includes('timeout') || errLow.includes('timed out')) {
-      guidance = `${providerLabel} took too long to respond. Try a smaller model or reduce the max tokens setting.`;
-    } else if (errLow.includes('context') || errLow.includes('length') || errLow.includes('token')) {
-      guidance = `The conversation is too long for ${modelName}. Start a new chat or reduce the message history.`;
-    }
-    elements.errorState.querySelector('p').textContent = guidance;
-    elements.errorState.querySelector('.error-detail').textContent = streamError;
+      let guidance = streamError;
+      const errLow = streamError.toLowerCase();
+      if (errLow.includes('not available') || errLow.includes('model not found') || errLow.includes('does not exist') || errLow.includes('subscription')) {
+        guidance = `The model "${modelName}" is not available on ${providerLabel}. It may require a different subscription or have been deprecated. Try selecting a different model.`;
+      } else if (errLow.includes('invalid') || errLow.includes('expired') || errLow.includes('authentication') || errLow.includes('unauthorized') || errLow.includes('401') || errLow.includes('no api key')) {
+        guidance = `Your API key for ${providerLabel} appears to be invalid or missing. Open Settings → add or update your ${providerLabel} key.`;
+      } else if (errLow.includes('rate') || errLow.includes('429') || errLow.includes('quota')) {
+        guidance = `${providerLabel} rate limit or quota exceeded. Wait a moment and retry, or check your ${providerLabel} plan for usage limits.`;
+      } else if (errLow.includes('timeout') || errLow.includes('timed out')) {
+        guidance = `${providerLabel} took too long to respond. Try a smaller model or reduce the max tokens setting.`;
+      } else if (errLow.includes('context') || errLow.includes('length') || errLow.includes('token')) {
+        guidance = `The conversation is too long for ${modelName}. Start a new chat or reduce the message history.`;
+      }
+      elements.errorState.querySelector('p').textContent = guidance;
+      elements.errorState.querySelector('.error-detail').textContent = streamError;
 
-    // Add settings link in error
-    const btnWrapper = elements.errorState.querySelector('.error-btns');
-    if (btnWrapper && !btnWrapper.querySelector('.error-settings-link')) {
-      const link = document.createElement('button');
-      link.className = 'btn-secondary error-settings-link';
-      link.textContent = 'Open Settings';
-      link.addEventListener('click', () => {
-        import('../../features/settings/settings.js').then(m => m.openSettings());
-      });
-      btnWrapper.appendChild(link);
-    }
-    scrollToBottom(true);
+      // Add settings link in error
+      const btnWrapper = elements.errorState.querySelector('.error-btns');
+      if (btnWrapper && !btnWrapper.querySelector('.error-settings-link')) {
+        const link = document.createElement('button');
+        link.className = 'btn-secondary error-settings-link';
+        link.textContent = 'Open Settings';
+        link.addEventListener('click', () => {
+          import('../../features/settings/settings.js').then(m => m.openSettings());
+        });
+        btnWrapper.appendChild(link);
+      }
+      scrollToBottom(true);
 
-    // If model inaccessible, refresh models
-    if (errLow.includes('not available') || errLow.includes('model not found') || errLow.includes('does not exist')) {
-      // This will be handled by the models module
+      // If model inaccessible, refresh models
+      if (errLow.includes('not available') || errLow.includes('model not found') || errLow.includes('does not exist')) {
+        // This will be handled by the models module
+      }
+    } else if (collected) {
+      // Save chat ID on success
+      if (newChatId && !getActiveChatId()) {
+        setActiveChatId(newChatId);
+      }
+      // Reload chat list
+      const sidebarModule = await import('../sidebar/sidebar.js');
+      sidebarModule.loadChatList();
+      const finalMsg = { role: 'assistant', content: collected, model: model.id, created_at: new Date().toISOString() };
+      setMessages([...getMessages(), finalMsg]);
+      typingNode.replaceWith(buildMessageNode(finalMsg));
+    } else if (!sawFirstToken && !streamError) {
+      // Aborted before any token
+      typingNode.remove();
+      showToast({ type: 'info', title: 'Generation stopped' });
     }
-  } else if (collected) {
-    // Save chat ID on success
-    if (newChatId && !getActiveChatId()) {
-      setActiveChatId(newChatId);
-    }
-    // Reload chat list
-    const sidebarModule = await import('../sidebar/sidebar.js');
-    sidebarModule.loadChatList();
-    const finalMsg = { role: 'assistant', content: collected, model: model.id, created_at: new Date().toISOString() };
-    setMessages([...getMessages(), finalMsg]);
-    typingNode.replaceWith(buildMessageNode(finalMsg));
-  } else if (!sawFirstToken && !streamError) {
-    // Aborted before any token
-    typingNode.remove();
-    showToast({ type: 'info', title: 'Generation stopped' });
+  } catch (_err) {
+    showToast({ type: 'error', title: 'Unexpected error', message: _err.message });
   }
 
   setIsGenerating(false);
   setAbortController(null);
+
+  // Enforce minimum stop-button visibility so the user always sees
+  // the generating state, even on instant responses.
+  const elapsed = Date.now() - genStartedAt;
+  if (elapsed < MIN_STOP_VISIBLE_MS) {
+    await new Promise((r) => setTimeout(r, MIN_STOP_VISIBLE_MS - elapsed));
+  }
+  // ALWAYS yield to the browser (macrotask) so it can paint the
+  // generating state.  Without this, when elapsed >= MIN_STOP_VISIBLE_MS
+  // the revert runs in the same microtask chain as stream completion
+  // and the browser never paints the stop state — it only sees idle.
+  await new Promise((r) => setTimeout(r, 16));
+
+  // Only reset the button if we're still the most recent generation
+  // — prevents a stale minimum-duration pause from stealing the
+  // stop state from a newer generation.
+  if (genId === _genCounter) {
+    setSendButtonState(false);
+  }
   scrollToBottomIfNearBottom();
 }
 
@@ -473,6 +578,7 @@ export async function startNewChat() {
     getAbortController().abort();
   }
   resetChatState();
+  setSendButtonState(false);
   const sidebarModule = await import('../sidebar/sidebar.js');
   sidebarModule.renderChatHistory(document.getElementById('searchChats')?.value || '');
   elements.errorState?.classList.add('hidden');
@@ -492,13 +598,21 @@ export async function startNewChat() {
 export function initChatEvents() {
   initElements();
 
-  elements.stopBtn?.addEventListener('click', () => { if (getAbortController()) getAbortController().abort(); });
-  elements.retryBtn?.addEventListener('click', () => {
-    elements.errorState?.classList.add('hidden');
-    if (getLastUserText()) runGeneration({ content: getLastUserText(), fileIds: [], regenerate: true });
+  // Send button — always sends a message.
+  elements.sendBtn?.addEventListener('click', () => {
+    handleSend();
   });
 
-  elements.sendBtn?.addEventListener('click', handleSend);
+  // Stop button — always aborts the current generation.
+  elements.stopBtn?.addEventListener('click', stopGeneration);
+  elements.retryBtn?.addEventListener('click', () => {
+    elements.errorState?.classList.add('hidden');
+    if (!getSelectedModel()) {
+      showToast({ type: 'info', title: 'Model required', message: 'Select a model before retrying.' });
+      return;
+    }
+    if (getLastUserText()) runGeneration({ content: getLastUserText(), fileIds: [], regenerate: true });
+  });
   elements.attachBtn?.addEventListener('click', () => elements.fileInput?.click());
   elements.fileInput?.addEventListener('change', (e) => { handleFileSelection(e.target.files); e.target.value = ''; });
 

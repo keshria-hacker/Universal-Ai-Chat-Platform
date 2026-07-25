@@ -285,7 +285,7 @@ async def list_provider_status(db: Any) -> list[dict[str, Any]]:
         statuses.append({
             "id": "ollama",
             "label": "Ollama",
-            "state": "online",
+            "state": "local",
         })
 
     # Check cloud providers
@@ -419,6 +419,7 @@ def clear_inaccessible_models() -> int:
 # Backwards compatibility exports
 from .compat import CURATED_MODELS, MODELS, PROVIDERS  # noqa: E402,F401
 from .inaccessible import _inaccessible_models  # noqa: F401
+from .litellm_fallback import REASONING_PREFIX  # noqa: F401
 
 __all__ = [
     # Main API
@@ -427,6 +428,7 @@ __all__ = [
     "default_model_id",
     "stream_completion",
     "list_providers_static",
+    "REASONING_PREFIX",
     "clear_inaccessible_models",
     # Key resolution
     "resolve_api_key",

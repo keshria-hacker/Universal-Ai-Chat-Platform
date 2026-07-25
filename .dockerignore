@@ -53,4 +53,7 @@ Dockerfile
 .dockerignore
 
 # --- Docs (not needed at runtime) ---
-*.md
+# Only exclude root .md files; keep backend/README if any
+/README.md
+/ARCHITECTURE.md
+/SECURITY.md

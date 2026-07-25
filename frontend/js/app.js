@@ -74,7 +74,6 @@ function initDOM() {
     fileInput: $('#fileInput'),
     messageInput: $('#messageInput'),
     sendBtn: $('#sendBtn'),
-    stopBtn: $('#stopBtn'),
     webSearchToggle: $('#webSearchToggle'),
     tempControl: $('#tempControl'),
     tempPopover: $('#tempPopover'),

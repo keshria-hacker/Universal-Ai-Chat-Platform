@@ -4,7 +4,7 @@
 
 Designed for developers, researchers, students, and AI enthusiasts, Nexus aims to become a complete AI workspace where every model, provider, and AI tool can be accessed from one platform.
 
-> 🚧 **Project Status:** Active Development (v1.0 Preview)
+> 🚧 **Project Status:** Active Development (v1.1 Preview)
 >
 > Nexus is currently under active development. Version **1.0** is an early preview release focused on establishing the core architecture and multi-provider AI integration. Features, APIs, and the user interface may change as development progresses.
 
@@ -68,13 +68,13 @@ Designed for developers, researchers, students, and AI enthusiasts, Nexus aims t
 
 **Option 2:** Run from Command Prompt
 ```powershell
-cd "D:\chat apps\Universal-Ai-Chat-Platform--main"
+cd "C:\path\to\your\project"
 run.bat
 ```
 
 **Option 3:** Run start.py directly (window stays open)
 ```powershell
-cd "D:\chat apps\Universal-Ai-Chat-Platform--main"
+cd "C:\path\to\your\project"
 python start.py
 ```
 
@@ -199,7 +199,7 @@ python -m backend.reset_password testusr Reset@5fd19beb0f5b
 
 Nexus includes a **Skills** subsystem — parameterized prompt templates with dependency resolution and auto-suggest.
 
-### Built-in Skills (v1.0)
+### Built-in Skills (v1.1)
 | Skill | Category | Invocation | Description |
 |-------|----------|------------|-------------|
 | API Design Assistant | engineering | `both` | Design REST/GraphQL APIs |
@@ -292,7 +292,7 @@ See `requirements.txt` for complete list.
 
 ## 🔒 Security Considerations
 
-Nexus v1.0 is a **local, single-user application**:
+Nexus v1.1 is a **local, single-user application**:
 - Provider API keys added via Settings are **encrypted at rest** (Fernet with `MASTER_KEY` from `.env`)
 - Local account passwords use **scrypt** (memory-hard KDF)
 - Sessions use **Bearer tokens** + **HTTP-only cookies** with **CSRF double-submit protection**
@@ -332,7 +332,7 @@ MIT License — see `LICENSE` for details.
 
 ---
 
-## 🗺️ Roadmap (Post v1.0)
+## 🗺️ Roadmap (Post v1.1)
 
 | Area | Planned |
 |------|---------|

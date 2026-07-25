@@ -55,6 +55,10 @@ export async function loadProvidersAndModels() {
 
     elements.onboardingHint?.classList.add('hidden');
 
+    // Re-enable send button in case it was disabled by handleNoModels()
+    const sendBtnEl = document.getElementById('sendBtn');
+    if (sendBtnEl) sendBtnEl.disabled = false;
+
     // Select first available model or previously selected
     const selected = getSelectedModel();
     let model = models.find((m) => m.id === selected?.id) || models[0];
@@ -251,14 +255,13 @@ export function renderConnPulse() {
   const online = providers.filter((p) => p.state === 'online').length;
   const local = providers.filter((p) => p.state === 'local').length;
 
-  const existingLabel = elements.connPulse?.querySelector('span:last-child');
-  if (existingLabel && existingLabel !== elements.connPulse.querySelector('.pulse-dot')) existingLabel.remove();
-
-  const label = document.createElement('span');
-  label.textContent = online + local > 0 ? `${online} online · ${local} local` : 'No providers linked';
-  elements.connPulse?.appendChild(label);
-  const pulseDot = elements.connPulse?.querySelector('.pulse-dot');
-  if (pulseDot) pulseDot.style.background = online > 0 ? 'var(--success)' : 'var(--text-tertiary)';
+  // Fully replace connPulse content — clears the stale "Checking providers"
+  // text node from the HTML so we don't get duplicate text.
+  if (elements.connPulse) {
+    const statusText = online + local > 0 ? `${online} online · ${local} local` : 'No providers linked';
+    const dotColor = online > 0 ? 'var(--success)' : 'var(--text-tertiary)';
+    elements.connPulse.innerHTML = `<span class="pulse-dot" style="background:${dotColor}"></span> ${statusText}`;
+  }
 }
 
 /**

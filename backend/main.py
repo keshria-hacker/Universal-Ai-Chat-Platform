@@ -209,7 +209,7 @@ async def health_check():
     checks = {
         "status": "healthy",
         "app": settings.APP_NAME,
-        "version": "1.0.0",
+        "version": "1.1.0",
         "database": "unknown",
         "ollama": "unknown",
     }
