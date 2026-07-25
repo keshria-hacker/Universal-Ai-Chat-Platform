@@ -48,3 +48,4 @@ loguru==0.7.3                  # structured logging
 pyyaml==6.0.1
 psutil==6.1.1              # optional — frees stale ports on start
 cryptography==42.0.8           # Fernet encryption for API keys at rest
+python-magic==0.4.27           # Magic byte detection for file type validation (Linux-compatible; Windows uses python-magic-bin)

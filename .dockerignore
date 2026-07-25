@@ -1,0 +1,56 @@
+# --- Version control ---
+.git/
+.gitignore
+.gitattributes
+
+# --- Environment ---
+.env
+.env.*.local
+
+# --- Claude Code rules ---
+.claude/
+
+# --- Python ---
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+env/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+
+# --- Database (persisted via volume) ---
+history/
+*.db
+*.sqlite3
+
+# --- Uploaded files (persisted via volume) ---
+uploads/
+
+# --- ChromaDB vector index (persisted via volume) ---
+.chromadb/
+
+# --- Logs ---
+logs/
+
+# --- OS / editor ---
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+
+# --- Node ---
+node_modules/
+
+# --- Docker (don't nest) ---
+docker-compose*.yml
+Dockerfile
+.dockerignore
+
+# --- Docs (not needed at runtime) ---
+*.md
