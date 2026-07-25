@@ -240,9 +240,8 @@ kbd{
 
 .profile-section{
   display:flex; align-items:center; gap:10px; padding:9px 8px; border-radius:var(--radius-sm);
-  margin-top:4px; transition:background var(--dur-fast) var(--ease);
+  margin-top:4px; cursor:pointer;
 }
-.profile-section:hover{background:var(--bg-elevated-2); cursor:pointer;}
 .profile-avatar{
   width:30px; height:30px; border-radius:50%; background:linear-gradient(135deg,var(--accent),#B8A6FF);
   color:#fff; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; flex:0 0 auto;
@@ -251,6 +250,38 @@ kbd{
 .profile-name{font-size:13.5px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
 .profile-plan{font-size:11.5px; color:var(--text-tertiary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
 .profile-section > i{color:var(--text-tertiary); font-size:13px;}
+
+/* ===== Profile Popup (positioned near profile section) ===== */
+.profile-popup{
+  position:fixed; z-index:20000; width:260px;
+  display:none;
+}
+.profile-popup.show{display:block;}
+
+.profile-popup-card{
+  background:var(--bg-elevated-2); border-radius:var(--radius-lg); border:1px solid var(--border-soft);
+  width:260px; padding:20px; box-shadow:0 8px 24px rgba(0,0,0,0.5);
+}
+
+.profile-popup-header{
+  display:flex; align-items:center; gap:12px; margin-bottom:16px;
+}
+.profile-popup-header .profile-avatar{width:40px; height:40px; font-size:16px;}
+.profile-popup-name{font-size:15px; font-weight:600; color:var(--text-primary);}
+.profile-popup-email{font-size:12px; color:var(--text-tertiary);}
+
+.profile-popup-item{
+  display:flex; align-items:center; gap:12px; padding:12px; background:transparent; border:none;
+  width:100%; text-align:left; font-size:14px; color:var(--text-primary); cursor:pointer;
+  border-radius:var(--radius-sm); margin:2px 0;
+}
+.profile-popup-item:hover{background:var(--bg-elevated-2);}
+.profile-popup-item i{width:18px; text-align:center; color:var(--text-tertiary); font-size:15px;}
+.profile-popup-item.logout-btn{color:#ff6b6b; font-weight:600;}
+.profile-popup-item.logout-btn:hover{background:rgba(255,107,107,0.15);}
+.profile-popup-item.logout-btn i{color:#ff6b6b;}
+
+.profile-popup-divider{height:1px; background:var(--border-soft); margin:8px 0;}
 
 .sidebar-scrim{
   display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:45;

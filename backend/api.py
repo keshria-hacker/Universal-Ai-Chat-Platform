@@ -16,6 +16,7 @@ import websearch
 from database import AsyncSessionLocal, get_db
 from document import extract_text, truncate_preview
 from prompt_injection import detect_injection, sanitize_for_log
+from rag import index_document, retrieve_relevant_chunks, TOP_K as RAG_TOP_K
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile
 from fastapi.responses import StreamingResponse
 from models import Chat, Message, ProviderKey, UploadedFile
@@ -330,6 +331,10 @@ async def upload_file(request: Request, file: UploadFile, db: AsyncSession = Dep
     await db.commit()
     await db.refresh(record)
 
+    # Index document for RAG (non-blocking — failure doesn't break upload)
+    if extracted:
+        index_document(record.id, extracted, filename)
+
     return FileUploadOut(
         file_id=record.id,
         filename=record.filename,
@@ -385,16 +390,27 @@ async def chat_stream(payload: ChatStreamRequest, db: AsyncSession = Depends(get
         await db.commit()
         await db.refresh(chat)
 
-    # 2. Fold any attached files' extracted text into the latest user message
+    # 2. Fold any attached files into the latest user message.
+    #    Uses RAG retrieval when possible (top-k similar chunks); falls back
+    #    to the full extracted text stored in the database on any error.
     messages = [m.model_dump() for m in payload.messages]
     if payload.file_ids:
         result = await db.execute(select(UploadedFile).where(UploadedFile.id.in_(payload.file_ids)))
         files = result.scalars().all()
-        file_context = "\n\n".join(
-            f"--- {f.filename} ---\n{f.extracted_text}" for f in files if f.extracted_text
-        )
-        if file_context and messages:
-            messages[-1]["content"] = f"{messages[-1]['content']}\n\n[Attached files]\n{file_context}"
+        if files and messages:
+            last_user_msg = messages[-1]["content"]
+            rag_chunks = retrieve_relevant_chunks(last_user_msg, payload.file_ids, top_k=RAG_TOP_K)
+            if rag_chunks:
+                file_context = "\n\n".join(
+                    f"--- From {c['filename']} ---\n{c['text']}" for c in rag_chunks
+                )
+            else:
+                # Fallback: use full extracted text
+                file_context = "\n\n".join(
+                    f"--- {f.filename} ---\n{f.extracted_text}" for f in files if f.extracted_text
+                )
+            if file_context:
+                messages[-1]["content"] = f"{messages[-1]['content']}\n\n[Attached files]\n{file_context}"
     if web_context and messages:
         # Inject as a system message so the model sees the sources.
         messages.insert(0, {"role": "system", "content": web_context})

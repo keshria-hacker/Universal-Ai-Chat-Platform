@@ -20,8 +20,8 @@ env/
 *.pycached
 
 # --- Database ---
-history/*.db
-history/*.sqlite3
+*.db
+*.sqlite3
 history/*.bak*
 history/*.old
 history/*.prev
@@ -54,3 +54,6 @@ Thumbs.db
 
 # --- Logs ---
 logs/
+
+# --- ChromaDB vector index (auto-generated at runtime) ---
+.chromadb/

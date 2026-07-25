@@ -32,6 +32,10 @@ pytesseract==0.3.13            # OCR for scanned PDFs / images (requires system 
 pdf2image==1.17.0              # Convert PDF pages to images for OCR (requires poppler)
 python-magic-bin==0.4.14         # Magic byte detection for file type validation (includes libmagic binaries for Windows)
 
+# --- Document RAG (embedded vector search) ---
+chromadb>=1.5.0,<2.0.0               # embedded vector DB, no external service needed;
+                                # default embedding: all-MiniLM-L6-v2 (ONNX)
+
 # --- Database (SQLite for MVP; swap engine string for Postgres later) ---
 sqlalchemy[asyncio]==2.0.36    # [asyncio] extra guarantees greenlet is installed —
                                 # without it, greenlet is only pulled in indirectly and

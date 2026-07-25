@@ -7,7 +7,7 @@ import { initAppState, getMessages, getIsGenerating, getLastUserText, getTempera
 import { initElements as initChatElements, initChatEvents, handleSend, regenerate, runGeneration, stopGeneration, autoResizeTextarea, scrollToBottom, buildMessageNode, renderMessages, startNewChat as chatStartNewChat } from './features/chat/chat.js';
 import { initElements as initModelsElements, loadProvidersAndModels, renderModelList, renderProviderFilters, renderProviderStatusList, renderConnPulse, selectModel, openModelDropdown, closeModelDropdown, initModelSelector } from './features/models/models.js';
 import { initElements as initSettingsElements, openSettings, closeSettingsModal, applySettings as settingsApplySettings, loadSettings, syncSettingsUI, initSettings, renderProviderStatusList as settingsRenderProviderStatusList } from './features/settings/settings.js';
-import { initElements as initAuthElements, initializeAuth, setStartApplicationCallback, initAuth } from './features/auth/auth.js';
+import { initElements as initAuthElements, initializeAuth, setStartApplicationCallback, initAuth, logout } from './features/auth/auth.js';
 import { init as initSkills, openSkillsModal, closeSkillsModal } from './features/skills/skills.js';
 import { initElements as initSidebarElements, initSidebar, openMobileSidebar, closeMobileSidebar, toggleSidebarCollapse, loadChatList as sidebarLoadChatList, renderChatHistory as sidebarRenderChatHistory, openChat as sidebarOpenChat, deleteChat as sidebarDeleteChat } from './features/sidebar/sidebar.js';
 import { showToast, initToasts } from './shared/toast.js';

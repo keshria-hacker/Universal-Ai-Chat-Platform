@@ -22,7 +22,7 @@ Designed for developers, researchers, students, and AI enthusiasts, Nexus aims t
 ### Document Processing
 - 📂 **Upload and chat with documents** (PDF, DOCX, XLSX, PPTX, CSV, code, text, and more)
 - 🔍 **Full-text extraction** from all supported formats
-- ⚠️ **Current limitation:** Documents are concatenated into the prompt context (no RAG/vector search yet — large documents may exceed context windows)
+- 🧠 **RAG-enhanced retrieval** — documents are chunked (~500 tokens), embedded, and only the top-5 relevant chunks are injected into the prompt (no context stuffing)
 
 ### Settings & Configuration
 - 🔑 **Runtime API key management** — add/remove provider keys in Settings → Providers without restarting the server
@@ -336,7 +336,7 @@ MIT License — see `LICENSE` for details.
 
 | Area | Planned |
 |------|---------|
-| **RAG / Vector Search** | Chunking, embeddings, hybrid retrieval for large documents |
+| **RAG / Vector Search** | ✅ **Done** — chunking, embeddings, hybrid retrieval for large documents |
 | **Ollama Auto-Start** | Actually spawn `ollama serve` on demand |
 | **Docker / Compose** | Production-ready containerization |
 | **Multi-User Workspaces** | Teams, shared chats, role-based access |

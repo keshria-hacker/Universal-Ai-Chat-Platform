@@ -11,6 +11,7 @@ import {
   getAbortController, getModels, getSidebarCollapsed, setSidebarCollapsed
 } from '../../core/state.js';
 import { renderMessages, scrollToBottom, startNewChat } from '../chat/chat.js';
+import { closeProfilePopup } from '../auth/auth.js';
 
 let elements = {};
 
@@ -127,6 +128,7 @@ export function renderChatHistory(filter = '') {
  * Open a chat by ID.
  */
 export async function openChat(chatId) {
+  closeProfilePopup();
   setActiveChatId(chatId);
   renderChatHistory(elements.searchChats?.value || '');
 
@@ -189,8 +191,8 @@ export function deleteChat(chatId) {
 export function initSidebar() {
   initElements();
 
-  elements.newChatBtn?.addEventListener('click', startNewChat);
-  elements.mobileNewChat?.addEventListener('click', () => { startNewChat(); closeMobileSidebar(); });
+  elements.newChatBtn?.addEventListener('click', () => { closeProfilePopup(); startNewChat(); });
+  elements.mobileNewChat?.addEventListener('click', () => { closeProfilePopup(); startNewChat(); closeMobileSidebar(); });
   elements.collapseSidebar?.addEventListener('click', toggleSidebarCollapse);
   elements.expandSidebar?.addEventListener('click', toggleSidebarCollapse);
   elements.mobileSidebarToggle?.addEventListener('click', openMobileSidebar);
@@ -224,6 +226,7 @@ export function updateBodyScrollLock() {
   // Check if any overlay is open
   const anyOpen = !$('#settingsOverlay')?.classList.contains('hidden') ||
                   !$('#confirmOverlay')?.classList.contains('hidden') ||
-                  !document.getElementById('skillsOverlay')?.classList.contains('hidden');
+                  !document.getElementById('skillsOverlay')?.classList.contains('hidden') ||
+                  $('#profilePopup')?.classList.contains('show');
   document.body.style.overflow = anyOpen ? 'hidden' : '';
 }

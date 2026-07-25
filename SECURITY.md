@@ -19,4 +19,4 @@ Nexus v1.0 is a local, single-user application. It uses a locally stored account
 - Rotating `MASTER_KEY` periodically
 - Reviewing rate limits for your threat model
 
-See `SECURITY_FIXES.md` for the implementation status of security hardening measures.
+See `ARCHITECTURE.md` for the security architecture overview.

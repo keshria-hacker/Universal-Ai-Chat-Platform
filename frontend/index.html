@@ -94,7 +94,7 @@ if (location.protocol === 'file:') {
           <i class="fa-solid fa-sliders"></i>
           <span>Settings</span>
         </button>
-        <div class="profile-section" id="profileSection" aria-label="Local account">
+        <div class="profile-section" id="profileSection" role="button" tabindex="0" aria-label="Open profile menu" title="Open profile menu">
           <div class="profile-avatar" id="profileAvatar">N</div>
           <div class="profile-meta">
             <span class="profile-name" id="profileName">Local account</span>
@@ -108,6 +108,29 @@ if (location.protocol === 'file:') {
   </aside>
 
   <div class="sidebar-scrim" id="sidebarScrim"></div>
+
+  <!-- ============ PROFILE POPUP (positioned near sidebar profile) ============ -->
+  <div class="profile-popup" id="profilePopup">
+    <div class="profile-popup-card">
+      <div class="profile-popup-header">
+        <div class="profile-avatar" id="profilePopupAvatar">N</div>
+        <div>
+          <strong class="profile-popup-name" id="profilePopupName">Local account</strong>
+          <span class="profile-popup-email" id="profilePopupEmail">Personal workspace</span>
+        </div>
+      </div>
+      <button class="profile-popup-item" id="accountSettingsBtn">
+        <i class="fa-solid fa-user"></i> Account Settings
+      </button>
+      <button class="profile-popup-item" id="preferencesBtn">
+        <i class="fa-solid fa-paint-brush"></i> Preferences
+      </button>
+      <div class="profile-popup-divider"></div>
+      <button class="profile-popup-item logout-btn" id="logoutBtn">
+        <i class="fa-solid fa-arrow-right-from-bracket"></i> Logout
+      </button>
+    </div>
+  </div>
 
   <!-- ============ MAIN ============ -->
   <main class="main-panel">

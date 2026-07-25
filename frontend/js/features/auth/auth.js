@@ -8,6 +8,10 @@ import { escapeHtml } from '../../shared/utils.js';
 import { STORAGE_KEYS } from '../../shared/constants.js';
 
 let elements = {};
+/** @type {AbortController|null} — allows cleanup of popup listeners on re-init */
+let _popupController = null;
+/** @type {Element|null} — stores the element focused before popup opened */
+let _prevFocus = null;
 
 /**
  * Initialize DOM references.
@@ -52,10 +56,199 @@ export function initElements() {
     authResetBack: $('#authResetBack'),
     profileAvatar: $('#profileAvatar'),
     profileName: $('#profileName'),
+    profileSection: $('#profileSection'),
+    profilePopup: $('#profilePopup'),
+    profilePopupName: $('#profilePopupName'),
+    profilePopupAvatar: $('#profilePopupAvatar'),
+    profilePopupEmail: $('#profilePopupEmail'),
+    logoutBtn: $('#logoutBtn'),
+    accountSettingsBtn: $('#accountSettingsBtn'),
+    preferencesBtn: $('#preferencesBtn'),
   };
 }
 
 
+
+/**
+ * Logout the current user.
+ */
+export async function logout() {
+  try {
+    const res = await apiFetch('/auth/logout', {
+      method: 'POST',
+      credentials: 'include',
+    });
+
+    if (res.ok) {
+      // Reload the page to show the auth screen
+      window.location.reload();
+    } else {
+      throw new Error('Logout failed');
+    }
+  } catch (err) {
+    showToast({ type: 'error', title: 'Logout failed', message: err.message });
+  }
+}
+
+/**
+ * Initialize profile popup (positioned near the sidebar profile section).
+ * Uses AbortController so re-initialization cleans up prior listeners.
+ */
+export function initProfilePopup() {
+  // Teardown previous listeners if re-initializing
+  _popupController?.abort();
+  _popupController = new AbortController();
+  const sig = _popupController.signal;
+
+  if (!elements.profileSection || !elements.profilePopup) return;
+
+  // Toggle popup on profile section click
+  elements.profileSection.addEventListener('click', (e) => {
+    e.preventDefault();
+    toggleProfilePopup();
+  }, { signal: sig });
+
+  // Keyboard support: Enter/Space on profile section
+  elements.profileSection.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      toggleProfilePopup();
+    }
+  }, { signal: sig });
+
+  // Close when clicking outside
+  document.addEventListener('click', (e) => {
+    if (elements.profilePopup.classList.contains('show') &&
+        !elements.profilePopup.contains(e.target) &&
+        e.target !== elements.profileSection &&
+        !elements.profileSection.contains(e.target)) {
+      hideProfilePopup();
+    }
+  }, { signal: sig });
+
+  // Close on Escape + focus trap on Tab
+  document.addEventListener('keydown', (e) => {
+    if (!elements.profilePopup.classList.contains('show')) return;
+    if (e.key === 'Escape') {
+      hideProfilePopup();
+    } else if (e.key === 'Tab') {
+      // Trap focus inside popup
+      const focusable = elements.profilePopup.querySelectorAll(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      );
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+  }, { signal: sig });
+
+  // Reposition on scroll/resize while open
+  window.addEventListener('scroll', () => {
+    if (elements.profilePopup.classList.contains('show')) positionProfilePopup();
+  }, { signal: sig, capture: true });
+  window.addEventListener('resize', () => {
+    if (elements.profilePopup.classList.contains('show')) positionProfilePopup();
+  }, { signal: sig });
+
+  // Logout button
+  elements.logoutBtn?.addEventListener('click', async () => {
+    hideProfilePopup();
+    if (confirm('Are you sure you want to logout?')) {
+      await logout();
+    }
+  }, { signal: sig });
+
+  // Account settings (stub)
+  elements.accountSettingsBtn?.addEventListener('click', () => {
+    hideProfilePopup();
+    showToast({ type: 'info', message: 'Account settings would open here' });
+  }, { signal: sig });
+
+  // Preferences (stub)
+  elements.preferencesBtn?.addEventListener('click', () => {
+    hideProfilePopup();
+    showToast({ type: 'info', message: 'Preferences would open here' });
+  }, { signal: sig });
+}
+
+/** Position the popup — above profile section, fully in viewport */
+function positionProfilePopup() {
+  const rect = elements.profileSection.getBoundingClientRect();
+  const popup = elements.profilePopup;
+  const gap = 8;
+  const viewportPad = 10;
+
+  // Show momentarily to measure actual height (no paint flicker — synchronous JS)
+  popup.classList.add('show');
+  const popupH = popup.offsetHeight;
+  popup.classList.remove('show');
+
+  // Default: position above the profile section
+  let top = rect.top - popupH - gap;
+
+  // If not enough room above, flip to below
+  if (top < viewportPad) {
+    top = rect.bottom + gap;
+  }
+
+  // If even below would overflow bottom, clamp to viewport bottom
+  if (top + popupH + viewportPad > window.innerHeight) {
+    top = window.innerHeight - popupH - viewportPad;
+  }
+
+  // Center horizontally on profile section, clamped to viewport
+  let left = rect.left + (rect.width / 2) - 130;
+  left = Math.max(viewportPad, left);
+
+  popup.style.left = left + 'px';
+  popup.style.top = top + 'px';
+}
+
+/** Toggle popup visibility */
+function toggleProfilePopup() {
+  if (elements.profilePopup.classList.contains('show')) {
+    hideProfilePopup();
+  } else {
+    showProfilePopup();
+  }
+}
+
+/** Show the popup with focus management */
+function showProfilePopup() {
+  // Save currently focused element to restore later
+  _prevFocus = document.activeElement;
+  positionProfilePopup();
+  elements.profilePopup.classList.add('show');
+  // Focus first button inside popup
+  const firstBtn = elements.profilePopup.querySelector('button');
+  if (firstBtn) firstBtn.focus();
+}
+
+/** Hide the popup and restore focus */
+function hideProfilePopup() {
+  elements.profilePopup.classList.remove('show');
+  // Restore focus to the profile section trigger
+  if (_prevFocus && _prevFocus !== document.body) {
+    _prevFocus.focus();
+  } else {
+    elements.profileSection?.focus();
+  }
+  _prevFocus = null;
+}
+
+/** Close popup from outside (e.g. sidebar navigation) */
+export function closeProfilePopup() {
+  if (elements.profilePopup?.classList.contains('show')) {
+    hideProfilePopup();
+  }
+}
 
 /**
  * Initialize auth flow on app start.
@@ -63,6 +256,7 @@ export function initElements() {
  */
 export async function initializeAuth() {
   initElements();
+  initProfilePopup();
 
   // Show loading overlay
   elements.authOverlay.classList.remove('hidden');
@@ -158,6 +352,11 @@ export async function initializeAuth() {
 function setProfile(username) {
   elements.profileName.textContent = username;
   elements.profileAvatar.textContent = username.slice(0, 1).toUpperCase();
+
+  // Update popup profile info from cache
+  if (elements.profilePopupName) elements.profilePopupName.textContent = username;
+  if (elements.profilePopupAvatar) elements.profilePopupAvatar.textContent = username.slice(0, 1).toUpperCase();
+  if (elements.profilePopupEmail) elements.profilePopupEmail.textContent = 'Personal workspace';
 }
 
 /**
@@ -165,7 +364,7 @@ function setProfile(username) {
  * This will be overridden by main app.
  */
 let startApplication = () => {
-  console.log('startApplication not set');
+  // No-op — overridden by setStartApplicationCallback
 };
 
 /**

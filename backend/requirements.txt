@@ -1,8 +1,7 @@
 # =============================================================================
 # UniversalAI Backend — requirements.txt
 # Scope: MVP v1.0 (chat, multi-provider routing, streaming, document upload,
-# history). RAG/vector DB (v2), agents/vision/OCR (v3) are left out — add
-# them when you actually build those phases.
+# history, document RAG with chromadb).
 # Install with: pip install -r requirements.txt
 # =============================================================================
 
@@ -30,6 +29,10 @@ markdown==3.7                  # Markdown -> HTML for docs/preview
 Pillow==11.3.0                 # image handling (also needed ahead of OCR in v3)
 pytesseract==0.3.13            # OCR for scanned PDFs / images (requires system tesseract)
 pdf2image==1.17.0              # Convert PDF pages to images for OCR (requires poppler)
+
+# --- Document RAG (embedded vector search) ---
+chromadb>=1.5.0,<2.0.0               # embedded vector DB, no external service needed;
+                                # default embedding: all-MiniLM-L6-v2 (ONNX)
 
 # --- Database (SQLite for MVP; swap engine string for Postgres later) ---
 sqlalchemy[asyncio]==2.0.36    # [asyncio] extra guarantees greenlet is installed —

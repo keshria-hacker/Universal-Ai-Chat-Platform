@@ -52,6 +52,7 @@ Universal-Ai-Chat-Platform--main/
 │   ├── auth.py                 # Local authentication (register, login, logout, sessions)
 │   ├── llm.py                  # Provider registry, model discovery, LiteLLM streaming
 │   ├── document.py             # File text extraction (PDF, DOCX, XLSX, CSV, PPTX, code, text)
+│   ├── rag.py                  # Document chunking + vector retrieval (RAG with ChromaDB)
 │   ├── websearch.py            # Web search (DuckDuckGo Lite / Tavily / Brave)
 │   ├── ratelimit.py            # Rate limiting middleware
 │   ├── ratelimit_redis.py      # Redis-backed rate limit store
@@ -762,24 +763,42 @@ when you base a claim on a search result.
 8. Frontend stores file_id for use in chat messages
 ```
 
-### 11.3 File Attachment in Chat
+### 11.3 File Attachment in Chat (RAG)
 
-When a message is sent with `file_ids`, the backend:
-1. Queries the `uploaded_files` table for those IDs
-2. Concatenates all extracted text with filename headers
-3. Appends the file context to the latest user message:
+When a message is sent with `file_ids`, the backend uses **Retrieval-Augmented Generation (RAG)** instead of full-text concatenation:
+
+1. The user's latest message text is embedded using ChromaDB's built-in ONNX model (`all-MiniLM-L6-v2`)
+2. The top-5 most similar chunks are retrieved from the vector index (filtered by `file_ids`)
+3. Only those relevant chunks are injected into the prompt, prefixed with their source filenames
+4. If RAG fails (e.g., vector index unavailable), the system falls back to full extracted text from the database
 
 ```
 [User's original message]
 
 [Attached files]
---- document.pdf ---
-[extracted text content]
---- data.csv ---
-[extracted text content]
+--- From document.pdf ---
+[relevant chunk 1]
+--- From document.pdf ---
+[relevant chunk 2]
+--- From data.csv ---
+[relevant chunk]
 ```
 
-> ⚠️ **Current limitation:** Full extracted text is concatenated directly into the prompt (context stuffing). There is **no chunking, embedding, or vector retrieval (RAG)** implemented yet. Large documents may exceed model context windows. This is planned for v2.
+**RAG Pipeline (backend/rag.py):**
+
+| Step | Function | Description |
+|------|----------|-------------|
+| Chunk | `chunk_text()` | Paragraph-aware splitting (~500 tokens, 100-token overlap) |
+| Index | `index_document()` | Chunk → embed → store in ChromaDB collection |
+| Retrieve | `retrieve_relevant_chunks()` | Embed query → top-k L2 distance search |
+| Cleanup | `delete_document_chunks()` | Remove all chunks for a deleted file |
+
+**Key properties:**
+- ChromaDB runs in embedded mode — no external service required
+- Vector index stored on disk at `.chromadb/`
+- All RAG operations catch exceptions and log warnings; chat never breaks
+- Configurable chunk size (`CHUNK_SIZE`), overlap (`CHUNK_OVERLAP`), and top-k (`TOP_K`)
+- Vector DB path overridable via `CHROMA_DB_PATH` env var (used in tests)
 
 ---
 
@@ -790,7 +809,7 @@ When a message is sent with `file_ids`, the backend:
 | Test File | Tests | Coverage |
 |-----------|-------|----------|
 | `test_auth.py` | 8 | Password hashing, token generation, security properties |
-| `test_document.py` | 10 | Text extraction for all formats, error handling, preview truncation |
+| `test_document.py` | 22 | Text extraction, preview truncation, chunking, RAG retrieval |
 | `test_schemas.py` | 2 | ChatStreamRequest validation rules |
 | `test_model_selection.py` | 8 | Live model fetch, filtering, Ollama discovery, fallback logic |
 | `test_skills.py` | 1 | Skill model selection (real model, not hardcoded) |
