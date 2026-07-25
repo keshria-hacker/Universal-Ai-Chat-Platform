@@ -615,7 +615,7 @@ kbd{
 .file-chip-remove:hover{background:var(--bg-elevated-2); color:var(--danger);}
 
 .composer-row{display:flex; align-items:flex-end; gap:6px;}
-.composer-attach{margin-bottom:3px; color:var(--accent-soft);}
+.composer-attach{margin-bottom:3px; color:var(--text-secondary);}
 .composer-attach:hover{color:var(--accent); background:rgba(var(--accent-rgb),.12);}
 .composer-attach:active{color:var(--accent); background:rgba(var(--accent-rgb),.18); transform:scale(.92);}
 .composer-textarea{
@@ -683,17 +683,17 @@ kbd{
 
 /* ── Composer control colours — unified across all controls ─────────────
    Every icon in the composer controls follows the same three-state pattern:
-     default → accent-soft
+     default → text-secondary (muted light grey)
      hover / focus / active → accent
    This includes icons, toggles, chevrons, and the attach button.
    ========================================================================= */
 
-/* Default: all control icons */
+/* Default: all control icons — muted so accent pops on interact */
 .composer-select > i:first-child,
 .pill-control > i:first-child,
 .select-btn i.fa-chevron-down,
 .composer-attach {
-  color: var(--accent-soft);
+  color: var(--text-secondary);
   transition: color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
 
