@@ -4,9 +4,9 @@
 
 Designed for developers, researchers, students, and AI enthusiasts, Nexus aims to become a complete AI workspace where every model, provider, and AI tool can be accessed from one platform.
 
-> 🚧 **Project Status:** Active Development (v1.1 Preview)
+> 🚧 **Project Status:** Active Development (v1.1)
 >
-> Nexus is currently under active development. Version **1.0** is an early preview release focused on establishing the core architecture and multi-provider AI integration. Features, APIs, and the user interface may change as development progresses.
+> Nexus v1.1 continues to build on the core architecture with UI refinements, bug fixes, and improved provider detection. Features, APIs, and the user interface may change as development progresses.
 
 ---
 
@@ -52,6 +52,7 @@ Designed for developers, researchers, students, and AI enthusiasts, Nexus aims t
 | Mistral AI | `mistral` | Cloud | Yes | (none) |
 | Gemini | `gemini` | Cloud | Yes | `gemini/` |
 | Ollama | `ollama` | Local | No | `ollama/` |
+| OmniRoute | `omniroute` | Local | Yes | `openai/` |
 
 > **Note:** Additional providers can be added by extending the provider registry in `backend/providers/__init__.py`.
 
@@ -312,8 +313,8 @@ See `SECURITY.md` for vulnerability reporting.
 
 ### Development Setup
 ```bash
-git clone https://github.com/your-org/nexus-chat.git
-cd nexus-chat
+git clone https://github.com/keshria-hacker/Universal-Ai-Chat-Platform-.git
+cd Universal-Ai-Chat-Platform--
 cp .env.example .env
 # Edit .env with your MASTER_KEY and any API keys
 python start.py
