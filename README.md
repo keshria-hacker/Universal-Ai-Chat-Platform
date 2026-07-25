@@ -191,7 +191,7 @@ python -m backend.reset_password testusr Reset@5fd19beb0f5b
 | `.xlsx` | openpyxl | Cell-by-cell iteration |
 | `.pptx` | python-pptx | Slide + shape text extraction |
 
-> **Important:** Currently, **full extracted text is concatenated into the prompt** (context stuffing). There is no chunking, embedding, or vector retrieval (RAG). Large documents may exceed model context windows.
+> **RAG-enabled:** Documents are automatically chunked (~500 tokens with 100-token overlap), embedded via ChromaDB (all-MiniLM-L6-v2), and only the top-5 most relevant chunks are injected into the prompt. This avoids context stuffing and keeps responses focused. See `backend/rag.py` for details.
 
 ---
 
@@ -284,7 +284,7 @@ Test coverage includes:
 - Ollama (optional, for local models)
 - Git (for cloning)
 
-**Key Python dependencies:** FastAPI 0.115, Uvicorn 0.34, LiteLLM 1.56, SQLAlchemy 2.0, Pydantic 2.11, cryptography, python-magic-bin.
+**Key Python dependencies:** FastAPI 0.115, Uvicorn 0.34, LiteLLM 1.56, SQLAlchemy 2.0, Pydantic 2.11, cryptography, ChromaDB 1.5+, python-magic (Linux) / python-magic-bin (Windows).
 
 See `requirements.txt` for complete list.
 
@@ -338,7 +338,7 @@ MIT License — see `LICENSE` for details.
 |------|---------|
 | **RAG / Vector Search** | ✅ **Done** — chunking, embeddings, hybrid retrieval for large documents |
 | **Ollama Auto-Start** | Actually spawn `ollama serve` on demand |
-| **Docker / Compose** | Production-ready containerization |
+| **Docker / Compose** | ✅ **Done** — Multi-stage backend build, docker-compose with optional Redis & frontend profiles |
 | **Multi-User Workspaces** | Teams, shared chats, role-based access |
 | **Function Calling / Tools** | Model tool use with approval UI |
 | **Vision Models** | Image upload + analysis |

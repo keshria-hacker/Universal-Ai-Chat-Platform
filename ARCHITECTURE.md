@@ -42,6 +42,9 @@
 
 ```
 Universal-Ai-Chat-Platform--main/
+├── .dockerignore               # Docker build exclusion rules
+├── Dockerfile                  # Multi-stage Docker build (builder + slim runtime)
+├── docker-compose.yml          # Backend + optional Redis/frontend services
 ├── backend/                    # FastAPI Python backend
 │   ├── main.py                 # App entrypoint, lifespan, CORS, router mounts
 │   ├── config.py               # Typed settings loaded from .env via pydantic-settings
