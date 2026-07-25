@@ -616,7 +616,8 @@ kbd{
 
 .composer-row{display:flex; align-items:flex-end; gap:6px;}
 .composer-attach{margin-bottom:3px; color:var(--accent-soft);}
-.composer-attach:hover{color:var(--accent); background:rgba(var(--accent-rgb),.08);}
+.composer-attach:hover{color:var(--accent); background:rgba(var(--accent-rgb),.12);}
+.composer-attach:active{color:var(--accent); background:rgba(var(--accent-rgb),.18); transform:scale(.92);}
 .composer-textarea{
   flex:1; resize:none; border:none; background:transparent; outline:none; color:var(--text-primary);
   font-size:14.5px; line-height:1.5; padding:9px 4px; max-height:200px; font-family:var(--font-body);
@@ -642,6 +643,7 @@ kbd{
   transition:background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
 }
 .pill-control:hover{background:var(--bg-elevated-2); border-color:var(--text-tertiary);}
+.pill-control:active{background:var(--bg-elevated); border-color:var(--accent);}
 .pill-control:focus-visible{
   border-color:var(--accent);
   box-shadow:0 0 0 2px rgba(var(--accent-rgb),.12);
@@ -679,16 +681,34 @@ kbd{
 }
 .composer-select > i:first-child{font-size:11px; flex-shrink:0;}
 
-/* Unify all composer control icons — use accent-soft as default, accent on interact */
+/* ── Composer control colours — unified across all controls ─────────────
+   Every icon in the composer controls follows the same three-state pattern:
+     default → accent-soft
+     hover / focus / active → accent
+   This includes icons, toggles, chevrons, and the attach button.
+   ========================================================================= */
+
+/* Default: all control icons */
 .composer-select > i:first-child,
-.pill-control > i:first-child {
+.pill-control > i:first-child,
+.select-btn i.fa-chevron-down,
+.composer-attach {
   color: var(--accent-soft);
-  transition: color var(--dur-fast) var(--ease);
+  transition: color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
+
+/* Interact: hover, focus-within, active, toggled-on */
 .composer-select:hover > i:first-child,
 .composer-select:focus-within > i:first-child,
 .pill-control:hover > i:first-child,
-.toggle-pill.active > i:first-child {
+.pill-control:active > i:first-child,
+.toggle-pill.active > i:first-child,
+.toggle-pill:hover > i:first-child,
+.select-btn:hover i.fa-chevron-down,
+.select-btn:active i.fa-chevron-down,
+.composer-select:focus-within .select-btn i.fa-chevron-down,
+.composer-attach:hover,
+.composer-attach:active {
   color: var(--accent);
 }
 
@@ -700,9 +720,11 @@ kbd{
   padding:2px 6px 2px 2px; line-height:1;
   white-space:nowrap;
 }
+
+/* Chevron rotates on open — keep colour transition in sync */
 .select-btn i.fa-chevron-down{
-  font-size:9px; color:var(--text-tertiary);
-  transition:transform var(--dur-fast) var(--ease);
+  font-size:9px;
+  transition:color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
 .composer-select:focus-within .select-btn i.fa-chevron-down{
   transform:rotate(180deg);
