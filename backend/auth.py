@@ -13,6 +13,7 @@ from datetime import UTC, datetime, timedelta
 from config import settings
 from database import get_db
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response, status
+from loguru import logger
 from models import AuthSession, PasswordResetToken, User
 from schemas import (
     AuthCredentialsIn,
@@ -229,12 +230,22 @@ async def current_user(request: Request, user: User = Depends(get_current_user))
 
 @router.post("/forgot-password", response_model=ForgotPasswordOut)
 async def forgot_password(payload: ForgotPasswordIn, db: AsyncSession = Depends(get_db)):
-    """Request a password reset token. In single-user mode the token is
-    returned directly — no email system is configured.
+    """Request a password reset token.
 
-    For a production deployment with email, replace the return of
-    ``reset_token`` with an email-send call and always return
-    ``reset_token=None`` from this endpoint.
+    In local/development mode (the default) the token is returned directly
+    in the response and shown inline in the UI — there's no email system,
+    and this is a single-user app running on your own machine, so that's
+    a reasonable trade-off for convenience.
+
+    Once ``ENV=production`` is set (which the README already instructs
+    operators to do before exposing this app beyond localhost), the token
+    is NOT returned over HTTP. It's logged server-side instead (console +
+    logs/app.log), where only someone with shell/log access to the host
+    can read it — otherwise this endpoint would let anyone who knows a
+    username take over the account with zero authentication.
+
+    For a real production deployment, replace the server-side log line
+    below with an actual email-send call.
     """
     user = await db.scalar(select(User).where(User.username == payload.username.strip()))
     if user is None:
@@ -264,6 +275,24 @@ async def forgot_password(payload: ForgotPasswordIn, db: AsyncSession = Depends(
         expires_at=now + timedelta(minutes=30),
     ))
     await db.commit()
+
+    if settings.ENV == "production":
+        # Never put the token on the wire in production — only whoever can
+        # read the server's own logs should be able to see it.
+        logger.warning(
+            "Password reset requested for user '{username}'. Reset token "
+            "(valid 30 min): {token}",
+            username=user.username,
+            token=raw_token,
+        )
+        return ForgotPasswordOut(
+            message=(
+                "If that username exists, a password reset token has been "
+                "generated. Check the server console/logs for the token "
+                "(it expires in 30 minutes)."
+            ),
+            reset_token=None,
+        )
 
     return ForgotPasswordOut(
         message="Use the token below to set a new password. It expires in 30 minutes.",
