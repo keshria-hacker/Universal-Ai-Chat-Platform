@@ -48,4 +48,10 @@ loguru==0.7.3                  # structured logging
 pyyaml==6.0.1
 psutil==6.1.1              # optional — frees stale ports on start
 cryptography==42.0.8           # Fernet encryption for API keys at rest
-python-magic==0.4.27           # Magic byte detection for file type validation (Linux-compatible; Windows uses python-magic-bin)
+# Magic byte detection for file type validation.
+# python-magic needs the system libmagic shared library on Linux/macOS
+# (apt: libmagic1, brew: libmagic) — python-magic-bin bundles the binary
+# for Windows instead, so it must NOT be installed on other platforms
+# (it has no Linux/macOS distribution and pip install fails outright there).
+python-magic==0.4.27; sys_platform != "win32"
+python-magic-bin==0.4.14; sys_platform == "win32"

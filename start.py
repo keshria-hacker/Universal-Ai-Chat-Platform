@@ -105,24 +105,39 @@ def ensure_env_file() -> None:
         shutil.copy2(ENV_EXAMPLE, ENV_FILE)
         print(f"Created {ENV_FILE.name} from {ENV_EXAMPLE.name} - edit it to add your API keys.")
 
-    # Validate that MASTER_KEY is present (the bare minimum for the backend to start)
-    if ENV_FILE.exists():
-        missing = [
-            key
-            for key in ("MASTER_KEY",)
-            if key not in os.environ
-            and not any(
-                line.strip().startswith(f"{key}=") and not line.strip().startswith("#")
-                for line in ENV_FILE.read_text(encoding="utf-8").splitlines()
-            )
-        ]
-        if missing:
-            _print_error(
-                "Missing required setting(s) in .env: " + ", ".join(missing),
-                "The backend will not start without these.\n"
-                "Open .env in a text editor and uncomment/add the missing values.",
-            )
+    if not ENV_FILE.exists():
+        return
 
+    # Ensure MASTER_KEY has an actual value (not just a present-but-empty line —
+    # `.env.example` ships `MASTER_KEY=` on purpose so it's obvious in the file,
+    # but an empty value still leaves provider-key encryption broken).
+    if "MASTER_KEY" in os.environ and os.environ["MASTER_KEY"].strip():
+        return
+
+    lines = ENV_FILE.read_text(encoding="utf-8").splitlines()
+    has_real_value = any(
+        line.strip().startswith("MASTER_KEY=")
+        and not line.strip().startswith("#")
+        and line.split("=", 1)[1].strip()
+        for line in lines
+    )
+    if has_real_value:
+        return
+
+    # Generate a fresh Fernet key and write it into .env automatically so a
+    # first-time run works without any manual setup step.
+    from cryptography.fernet import Fernet
+    new_key = Fernet.generate_key().decode()
+
+    if any(line.strip().startswith("MASTER_KEY=") for line in lines):
+        lines = [
+            f"MASTER_KEY={new_key}" if line.strip().startswith("MASTER_KEY=") else line
+            for line in lines
+        ]
+    else:
+        lines.append(f"MASTER_KEY={new_key}")
+    ENV_FILE.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    print("Generated a new MASTER_KEY in .env (used to encrypt provider API keys at rest).")
 
 def build_commands(python_exe: str):
     backend_cmd = [python_exe, "-m", "uvicorn", "main:app", "--host", "127.0.0.1", "--port", str(BACKEND_PORT)]

@@ -4,7 +4,6 @@ extraction) stays in llm.py / document.py; this module wires HTTP in and
 out and persists chat state via SQLAlchemy.
 """
 import asyncio
-import magic
 import re
 import time
 import uuid
@@ -68,7 +67,24 @@ ALLOWED_MIME_TYPES = {
     "r": ["text/plain"],
 }
 
-_magic = magic.Magic(mime=True)
+# Optional dependency: python-magic requires the system libmagic shared
+# library (apt: libmagic1, brew: libmagic) in addition to the pip package.
+# If either is missing, degrade gracefully to extension-only validation
+# (already enforced above) instead of crashing the whole app at import time —
+# same pattern used for OCR in document.py.
+try:
+    import magic
+    _magic = magic.Magic(mime=True)
+    MAGIC_AVAILABLE = True
+except Exception:  # noqa: BLE001 — missing package or missing system libmagic
+    _magic = None
+    MAGIC_AVAILABLE = False
+    from loguru import logger
+    logger.warning(
+        "python-magic / libmagic not available — file uploads will only be "
+        "validated by extension, not by content. Install the system libmagic "
+        "library (apt: libmagic1, brew: libmagic) to re-enable content validation."
+    )
 
 
 def sse_event(data: str, event: str | None = None) -> str:
@@ -301,18 +317,21 @@ async def upload_file(request: Request, file: UploadFile, db: AsyncSession = Dep
     if size_mb > settings.MAX_UPLOAD_SIZE_MB:
         raise HTTPException(status_code=413, detail=f"File exceeds {settings.MAX_UPLOAD_SIZE_MB} MB limit")
 
-    # Magic byte validation - verify the file contents match the declared extension
-    try:
-        detected_mime = _magic.from_buffer(contents)
-    except Exception:
-        raise HTTPException(status_code=400, detail="Could not determine file type")
+    # Magic byte validation - verify the file contents match the declared extension.
+    # Skipped gracefully if libmagic isn't installed on this system (extension
+    # check above still applies).
+    if MAGIC_AVAILABLE:
+        try:
+            detected_mime = _magic.from_buffer(contents)
+        except Exception:
+            raise HTTPException(status_code=400, detail="Could not determine file type")
 
-    allowed_mimes = ALLOWED_MIME_TYPES.get(extension, [])
-    if allowed_mimes and detected_mime not in allowed_mimes:
-        raise HTTPException(
-            status_code=415,
-            detail=f"File content does not match extension .{extension}. Detected: {detected_mime}"
-        )
+        allowed_mimes = ALLOWED_MIME_TYPES.get(extension, [])
+        if allowed_mimes and detected_mime not in allowed_mimes:
+            raise HTTPException(
+                status_code=415,
+                detail=f"File content does not match extension .{extension}. Detected: {detected_mime}"
+            )
 
     settings.UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
     stored_name = f"{uuid.uuid4().hex[:12]}_{filename}"

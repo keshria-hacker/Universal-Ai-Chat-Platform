@@ -30,7 +30,13 @@ markdown==3.7                  # Markdown -> HTML for docs/preview
 Pillow==11.3.0                 # image handling (also needed ahead of OCR in v3)
 pytesseract==0.3.13            # OCR for scanned PDFs / images (requires system tesseract)
 pdf2image==1.17.0              # Convert PDF pages to images for OCR (requires poppler)
-python-magic-bin==0.4.14         # Magic byte detection for file type validation (includes libmagic binaries for Windows)
+# Magic byte detection for file type validation.
+# python-magic needs the system libmagic shared library on Linux/macOS
+# (apt: libmagic1, brew: libmagic) — python-magic-bin bundles the binary
+# for Windows instead, so it must NOT be installed on other platforms
+# (it has no Linux/macOS distribution and pip install fails outright there).
+python-magic==0.4.27; sys_platform != "win32"
+python-magic-bin==0.4.14; sys_platform == "win32"
 
 # --- Document RAG (embedded vector search) ---
 chromadb>=1.5.0,<2.0.0               # embedded vector DB, no external service needed;
