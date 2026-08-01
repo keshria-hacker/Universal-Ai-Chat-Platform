@@ -64,6 +64,13 @@ async def init_db() -> None:
         await conn.run_sync(Base.metadata.create_all)
 
 
+async def reset_db() -> None:
+    """Drop and recreate all tables (for testing)."""
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+        await conn.run_sync(Base.metadata.create_all)
+
+
 async def get_db() -> AsyncGenerator[AsyncSession]:
     """FastAPI dependency — yields a request-scoped async session."""
     async with AsyncSessionLocal() as session:

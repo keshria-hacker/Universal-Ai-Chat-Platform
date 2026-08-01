@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "universal-ai-chat-platform"
 version = "1.1.0"
 description = "Universal AI Chat Platform — multi-provider chat with security hardening"
-requires-python = ">=3.11"
+requires-python = ">=3.11,<3.15"
 
 [tool.ruff]
 line-length = 100

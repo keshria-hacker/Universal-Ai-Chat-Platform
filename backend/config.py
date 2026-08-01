@@ -94,4 +94,9 @@ def get_settings() -> Settings:
     return Settings()
 
 
+def reset_settings() -> None:
+    """Clear the settings cache for testing."""
+    get_settings.cache_clear()
+
+
 settings = get_settings()

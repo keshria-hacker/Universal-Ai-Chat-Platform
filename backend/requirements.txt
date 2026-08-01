@@ -9,8 +9,8 @@
 fastapi==0.115.6
 uvicorn[standard]==0.34.0
 python-multipart==0.0.20      # required for file upload (UploadFile) support
-pydantic==2.11.7
-pydantic-settings==2.7.1      # typed settings loaded from .env
+pydantic==2.12.0
+pydantic-settings==2.12.0      # typed settings loaded from .env
 python-dotenv==1.0.1
 
 # --- LLM provider integration ---

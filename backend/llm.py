@@ -49,7 +49,7 @@ async def list_ollama_models(base_url: str = "http://localhost:11434") -> list[M
 def _try_start_ollama() -> None:
     """Attempt to start Ollama server (backward-compatible wrapper)."""
     # This wrapper exists so tests can patch llm._try_start_ollama
-    from providers.model_discovery import _try_start_ollama as _real_try_start_ollama
+    from providers.ollama import _try_start_ollama as _real_try_start_ollama
     _real_try_start_ollama()
 
 

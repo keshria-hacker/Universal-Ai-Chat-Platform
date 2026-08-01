@@ -6,16 +6,18 @@ import os
 import unittest
 from pathlib import Path
 
-# Enable test mode to disable rate limiting
+# Enable test mode to disable rate limiting and set test master key
 os.environ["TEST_MODE"] = "1"
+os.environ["MASTER_KEY"] = "7nQheyKjedj1oYnZhCq3PqxMRCl9E5rdteunHkQzGBQ="
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "backend"))
 
 from httpx import ASGITransport, AsyncClient
 from main import app
-from database import init_db
+from database import init_db, reset_db
 from ratelimit_redis import reset_rate_limit_store_for_testing
+from config import reset_settings
 
 
 class ChatIntegrationTests(unittest.IsolatedAsyncioTestCase):
@@ -31,10 +33,12 @@ class ChatIntegrationTests(unittest.IsolatedAsyncioTestCase):
         db_path = ROOT / "history" / "nexus.db"
         if db_path.exists():
             db_path.unlink()
+        # Reset settings cache to pick up test MASTER_KEY
+        reset_settings()
 
     async def asyncSetUp(self):
         reset_rate_limit_store_for_testing()
-        await init_db()
+        await reset_db()
         transport = ASGITransport(app=app)
         self.client = AsyncClient(transport=transport, base_url="http://test")
 
