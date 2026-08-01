@@ -287,7 +287,7 @@ function initGlobalListeners() {
     const btn = e.target.closest('button[data-value]');
     if (!btn) return;
     const val = btn.dataset.value;
-    const labels = { none: 'Auto', low: 'Low', medium: 'Medium', high: 'High', extra_high: 'Extra high' };
+    const labels = { none: 'Auto', low: 'Low', medium: 'Medium', high: 'High', extra_high: 'Extra High' };
     elements.reasoningLabel.textContent = labels[val] || val;
     setReasoningEffort(val);
     elements.reasoningDropdown.querySelectorAll('button').forEach((b) => b.classList.remove('selected'));
@@ -351,6 +351,26 @@ function setupGlobalNamespace() {
 }
 
 /**
+ * Sync token and reasoning dropdowns with current state.
+ */
+function syncDropdownsFromState() {
+  // Token dropdown
+  const maxTokens = getMaxTokens();
+  elements.tokenLabel.textContent = parseInt(maxTokens).toLocaleString();
+  elements.tokenDropdown?.querySelectorAll('button').forEach((b) => {
+    b.classList.toggle('selected', b.dataset.value === maxTokens);
+  });
+
+  // Reasoning dropdown
+  const reasoningEffort = getReasoningEffort();
+  const labels = { none: 'Auto', low: 'Low', medium: 'Medium', high: 'High', extra_high: 'Extra High' };
+  elements.reasoningLabel.textContent = labels[reasoningEffort] || reasoningEffort;
+  elements.reasoningDropdown?.querySelectorAll('button').forEach((b) => {
+    b.classList.toggle('selected', b.dataset.value === reasoningEffort);
+  });
+}
+
+/**
  * Main bootstrap function - called after auth succeeds.
  */
 export async function startApplication() {
@@ -363,6 +383,9 @@ export async function startApplication() {
 
   // Set up global namespace for inline handlers
   setupGlobalNamespace();
+
+  // Sync dropdowns with current state
+  syncDropdownsFromState();
 
   // Load providers and models from backend
   try {
