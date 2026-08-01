@@ -18,7 +18,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /build
-COPY backend/requirements.txt .
+# Single source of truth: the dependency list lives at the repo root.
+COPY requirements.txt .
 
 # Install into /root/.local so we can copy *only* the installed packages
 # into the runtime stage without bringing build-time cruft along.

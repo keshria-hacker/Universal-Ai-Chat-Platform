@@ -568,7 +568,7 @@ class ProviderKeyDeletionTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(remaining)
 
 
-class SettingsClearInaccessibleTests(unittest.TestCase):
+class SettingsClearInaccessibleTests(unittest.IsolatedAsyncioTestCase):
     """Tests for clearing inaccessible models cache."""
 
     def test_clear_inaccessible_models_exists(self):
@@ -580,14 +580,9 @@ class SettingsClearInaccessibleTests(unittest.TestCase):
     async def test_clear_calls_llm_function(self, mock_clear):
         """Clear calls the llm module function."""
         from api import clear_inaccessible_models
-        from database import AsyncSessionLocal
 
-        session = AsyncSessionLocal()
-        try:
-            await clear_inaccessible_models(session)
-            mock_clear.assert_called_once()
-        finally:
-            await session.close()
+        await clear_inaccessible_models()
+        mock_clear.assert_called_once()
 
 
 if __name__ == "__main__":

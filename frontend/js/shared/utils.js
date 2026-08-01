@@ -1,6 +1,8 @@
 /**
- * Shared utility functions.
- * Pure functions with no side effects.
+ * Shared utility + DOM helper functions.
+ * This is the single source of truth for shared helpers (utils.js and the
+ * former dom.js were merged to remove duplicated exports like $, $$,
+ * createEl, debounce, trapFocus and the class helpers).
  */
 
 import { FILE_ICON_MAP, SUPPORTED_FILE_EXTENSIONS, NON_CHAT_MARKERS } from './constants.js';
@@ -308,13 +310,13 @@ export function createEl(tag, props = {}, children = '') {
   });
 
   if (typeof children === 'string') {
-    el.innerHTML = children;
+    el.insertAdjacentHTML('beforeend', children);
   } else if (children instanceof Node) {
     el.appendChild(children);
   } else if (Array.isArray(children)) {
     children.forEach((child) => {
       if (child instanceof Node) el.appendChild(child);
-      else el.innerHTML += child;
+      else el.insertAdjacentHTML('beforeend', child);
     });
   }
 
@@ -347,4 +349,90 @@ export function toggleClass(el, className, force) {
  */
 export function hasClass(el, className) {
   return el?.classList.contains(className) ?? false;
+}
+
+/**
+ * Remove all children from an element.
+ */
+export function empty(el) {
+  if (!el) return;
+  while (el.firstChild) {
+    el.removeChild(el.firstChild);
+  }
+}
+
+/**
+ * Set multiple attributes at once.
+ */
+export function setAttrs(el, attrs) {
+  if (!el) return;
+  Object.entries(attrs).forEach(([key, value]) => {
+    if (value === null || value === undefined) {
+      el.removeAttribute(key);
+    } else {
+      el.setAttribute(key, value);
+    }
+  });
+}
+
+/**
+ * Get data attribute value.
+ */
+export function getData(el, key) {
+  return el?.dataset[key];
+}
+
+/**
+ * Set data attribute.
+ */
+export function setData(el, key, value) {
+  if (!el) return;
+  el.dataset[key] = value;
+}
+
+/**
+ * Show element (removes hidden state).
+ */
+export function show(el, display = '') {
+  if (!el) return;
+  el.style.display = display || (el.tagName === 'TR' ? 'table-row' : el.tagName === 'TD' ? 'table-cell' : '');
+  el.classList.remove('hidden');
+}
+
+/**
+ * Hide element (adds hidden state).
+ */
+export function hide(el) {
+  if (!el) return;
+  el.style.display = 'none';
+  el.classList.add('hidden');
+}
+
+/**
+ * Toggle element visibility.
+ */
+export function toggle(el, force) {
+  if (!el) return;
+  const hidden = el.classList.contains('hidden');
+  if (force === undefined) force = hidden;
+  if (force) show(el); else hide(el);
+}
+
+/**
+ * Lock/unlock body scroll (for modals) using a reference counter so nested
+ * overlays don't unlock the page early.
+ */
+let _scrollLockCount = 0;
+export function lockBodyScroll() {
+  _scrollLockCount++;
+  if (_scrollLockCount === 1) {
+    document.body.style.overflow = 'hidden';
+  }
+}
+
+export function unlockBodyScroll() {
+  _scrollLockCount = Math.max(0, _scrollLockCount - 1);
+  if (_scrollLockCount === 0) {
+    document.body.style.overflow = '';
+  }
 }

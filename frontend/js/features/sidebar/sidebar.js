@@ -5,6 +5,7 @@
 import { getApiBaseUrl, apiFetch, apiDelete } from '../../shared/http.js';
 import { showToast } from '../../shared/toast.js';
 import { escapeHtml, bucketFor } from '../../shared/utils.js';
+import { CHAT_BUCKETS } from '../../shared/constants.js';
 import {
   getChats, setChats, getActiveChatId, setActiveChatId,
   getMessages, setMessages, getSelectedModel, selectModel,
@@ -77,7 +78,7 @@ export async function loadChatList() {
  */
 export function renderChatHistory(filter = '') {
   const q = filter.trim().toLowerCase();
-  const buckets = ['Today', 'Yesterday', 'Previous 7 days', 'Previous 30 days', 'Older'];
+  const buckets = CHAT_BUCKETS;
   const container = elements.chatHistory;
   if (!container) return;
 
