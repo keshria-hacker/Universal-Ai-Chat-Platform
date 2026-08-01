@@ -21,46 +21,33 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "backend"))
 
-# Enable test mode with in-memory database BEFORE importing ANY backend modules
+# Enable test mode with file-based database BEFORE importing ANY backend modules
+# Using in-memory DB causes issues because each connection gets a different DB
 os.environ["TEST_MODE"] = "1"
 os.environ["MASTER_KEY"] = "7nQheyKjedj1oYnZhCq3PqxMRCl9E5rdteunHkQzGBQ="
-os.environ["DATABASE_URL"] = "sqlite+aiosqlite://"
+# Use file-based test database
+test_db_path = ROOT / "test_auth.db"
+if test_db_path.exists():
+    test_db_path.unlink()
+os.environ["DATABASE_URL"] = f"sqlite+aiosqlite:///{test_db_path}"
 
 # Reset settings cache BEFORE importing config
-from backend.config import reset_settings, settings as config_settings
+from config import reset_settings, settings as config_settings
 reset_settings()
-config_settings.DATABASE_URL = "sqlite+aiosqlite://"
+config_settings.DATABASE_URL = os.environ["DATABASE_URL"]
 
-# Create a fresh async engine for in-memory SQLite testing BEFORE importing backend modules
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
-from sqlalchemy.pool import NullPool
+# NOW import database module - it will create engine with test DB
+import database as db_module
 
-test_engine = create_async_engine(
-    "sqlite+aiosqlite://",
-    echo=False,
-    future=True,
-    connect_args={"timeout": 30, "check_same_thread": False},
-    poolclass=NullPool,
-)
+# Use the database module's engine and session factory directly
+test_engine = db_module.engine
+TestAsyncSessionLocal = db_module.AsyncSessionLocal
 
-# Create session factory bound to test engine
-TestAsyncSessionLocal = async_sessionmaker(
-    bind=test_engine,
-    class_=AsyncSession,
-    expire_on_commit=False,
-)
-
-# NOW patch backend.database to use our test engine and session factory
-# This MUST be done BEFORE importing backend.auth (which imports backend.models -> backend.database)
-import backend.database as db_module
-db_module.engine = test_engine
-db_module.AsyncSessionLocal = TestAsyncSessionLocal
-
-# Now import backend modules - they will use the patched database
-import backend.auth as auth
-from backend.database import Base  # Use the same Base from the patched module
+# Now import backend modules - they will use the same database module
+import auth
+from database import Base  # Use the same Base from the patched module
 
 
 async def create_test_tables():
@@ -90,6 +77,9 @@ class AuthUnitTests(unittest.IsolatedAsyncioTestCase):
     async def asyncTearDownClass(cls):
         await drop_test_tables()
         await test_engine.dispose()
+        # Clean up test database file
+        if test_db_path.exists():
+            test_db_path.unlink()
 
     async def asyncSetUp(self):
         await reset_test_db()
@@ -833,6 +823,9 @@ class SessionManagementTests(unittest.IsolatedAsyncioTestCase):
 
     async def asyncSetUp(self):
         await reset_test_db()
+        self.User = auth.User
+        self.AuthSession = auth.AuthSession
+        self.PasswordResetToken = auth.PasswordResetToken
         self.session = TestAsyncSessionLocal()
 
     async def asyncTearDown(self):
