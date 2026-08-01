@@ -1,0 +1,59 @@
+# =============================================================================
+# docker-compose.all.yml — Single container: Backend + Frontend
+# =============================================================================
+
+services:
+  nexus-all:
+    build:
+      context: .
+      dockerfile: Dockerfile.all
+    image: nexus-all:latest
+    container_name: nexus-all
+    ports:
+      - "8001:8001"   # Backend API
+      - "5500:5500"   # Frontend
+    env_file:
+      - .env
+    environment:
+      # Ollama on host machine (Docker Desktop provides host.docker.internal)
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+    volumes:
+      # Persist data across container restarts
+      - nexus_history:/app/history
+      - nexus_uploads:/app/uploads
+      - nexus_chromadb:/app/.chromadb
+      - nexus_logs:/app/logs
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    networks:
+      - nexus_net
+
+  # Optional Redis for distributed rate limiting
+  redis:
+    image: redis:7-alpine
+    container_name: nexus-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - nexus_redis:/data
+    restart: unless-stopped
+    profiles:
+      - redis
+    networks:
+      - nexus_net
+
+volumes:
+  nexus_history:
+  nexus_uploads:
+  nexus_chromadb:
+  nexus_logs:
+  nexus_redis:
+
+networks:
+  nexus_net:
+    driver: bridge
