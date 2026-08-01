@@ -207,6 +207,11 @@ function initGlobalListeners() {
       import('./core/state.js').then((m) => m.setSettings({ ...m.getSettings(), theme: newTheme }));
       settingsApplySettings();
     }
+    // Ctrl+Shift+W - Toggle web search
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'w') {
+      e.preventDefault();
+      elements.webSearchToggle?.click();
+    }
     // Ctrl+/ - Shortcuts help
     if ((e.ctrlKey || e.metaKey) && e.key === '/') {
       e.preventDefault();

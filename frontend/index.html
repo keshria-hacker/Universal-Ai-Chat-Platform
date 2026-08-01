@@ -146,6 +146,8 @@ if (location.protocol === 'file:') {
           <span class="provider-dot" style="--dot-color:#D97757"></span>
           <span class="model-name">Loading models…</span>
           <span class="model-provider">Checking providers</span>
+          <span class="status-dot offline" title="Not linked"></span>
+          <span class="reasoning-effort hidden" id="reasoningEffortIndicator" aria-label="Reasoning effort"></span>
           <i class="fa-solid fa-chevron-down"></i>
         </button>
 
@@ -617,6 +619,7 @@ if (location.protocol === 'file:') {
       <div class="shortcut-row"><kbd>Ctrl</kbd><kbd>K</kbd><span>New chat</span></div>
       <div class="shortcut-row"><kbd>Ctrl</kbd><kbd>Shift</kbd><kbd>C</kbd><span>Copy last response</span></div>
       <div class="shortcut-row"><kbd>Ctrl</kbd><kbd>Shift</kbd><kbd>R</kbd><span>Regenerate response</span></div>
+      <div class="shortcut-row"><kbd>Ctrl</kbd><kbd>Shift</kbd><kbd>W</kbd><span>Toggle web search</span></div>
       <div class="shortcut-row"><kbd>Ctrl</kbd><kbd>,</kbd><span>Open settings</span></div>
       <div class="shortcut-row"><kbd>Ctrl</kbd><kbd>M</kbd><span>Open model selector</span></div>
       <div class="shortcut-row"><kbd>Ctrl</kbd><kbd>Shift</kbd><kbd>T</kbd><span>Toggle theme</span></div>

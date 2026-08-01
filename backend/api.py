@@ -444,6 +444,7 @@ async def chat_stream(payload: ChatStreamRequest, db: AsyncSession = Depends(get
         async with AsyncSessionLocal() as stream_db:
             collected = ""
             last_heartbeat = time.monotonic()
+            stream_started_at = time.monotonic()
             try:
                 yield sse_event(chat.id, event="chat_id")
 
@@ -470,12 +471,14 @@ async def chat_stream(payload: ChatStreamRequest, db: AsyncSession = Depends(get
                 if time.monotonic() - last_heartbeat >= SSE_HEARTBEAT_INTERVAL:
                     yield f": heartbeat {int(time.monotonic())}\n\n"
 
+                response_time = time.monotonic() - stream_started_at
+
                 if not payload.regenerate:
                     stream_db.add(Message(chat_id=chat.id, role="user",
                                    content=payload.messages[-1].content,
                                    file_ids=",".join(payload.file_ids) or None))
                 stream_db.add(Message(chat_id=chat.id, role="assistant", content=collected,
-                               model=payload.model))
+                               model=payload.model, response_time=response_time))
                 # Merge the chat into the new session so the model/updated_at
                 # changes are tracked and persisted on commit.
                 chat.model = payload.model
