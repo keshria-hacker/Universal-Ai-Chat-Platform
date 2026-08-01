@@ -216,6 +216,32 @@ export function selectModel(model, opts = {}) {
   elements.modelSelectorBtn.querySelector('.provider-dot').style.setProperty('--dot-color', info.color);
   elements.modelSelectorBtn.querySelector('.model-name').textContent = model.name;
   elements.modelSelectorBtn.querySelector('.model-provider').textContent = info.label;
+
+  // Update status indicator on model selector button
+  let statusEl = elements.modelSelectorBtn.querySelector('.status-dot');
+  if (!statusEl) {
+    statusEl = document.createElement('span');
+    statusEl.className = 'status-dot';
+    elements.modelSelectorBtn.appendChild(statusEl);
+  }
+  statusEl.className = `status-dot ${info.state}`;
+  statusEl.title = info.state === 'online' ? 'Connected' : info.state === 'local' ? 'Local runtime' : 'Not linked';
+
+  // Update reasoning effort indicator
+  const reasoningEl = elements.modelSelectorBtn.querySelector('.reasoning-effort');
+  const effort = model.reasoningEffort || 'none';
+  const hasReasoning = effort !== 'none' && effort !== 'auto';
+
+  if (reasoningEl) {
+    if (hasReasoning) {
+      const labels = { low: 'Low', medium: 'Medium', high: 'High', extra_high: 'Extra High' };
+      reasoningEl.textContent = `🧠 ${labels[effort] || effort}`;
+      reasoningEl.classList.remove('hidden');
+    } else {
+      reasoningEl.classList.add('hidden');
+    }
+  }
+
   const sendBtn = document.getElementById('sendBtn');
   if (sendBtn) sendBtn.disabled = false;
   if (!opts.silent) renderModelList(elements.modelSearch.value);
