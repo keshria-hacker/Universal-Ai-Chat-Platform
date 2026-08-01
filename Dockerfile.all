@@ -13,7 +13,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /build
-COPY backend/requirements.txt .
+# Single source of truth: the dependency list lives at the repo root.
+COPY requirements.txt .
 
 # Install deps into /root/.local
 RUN pip install --no-cache-dir --user -r requirements.txt

@@ -15,6 +15,7 @@ Tests cover:
 """
 import os
 import sys
+import tempfile
 import unittest
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -27,8 +28,9 @@ sys.path.insert(0, str(ROOT / "backend"))
 # Using in-memory DB causes issues because each connection gets a different DB
 os.environ["TEST_MODE"] = "1"
 os.environ["MASTER_KEY"] = "7nQheyKjedj1oYnZhCq3PqxMRCl9E5rdteunHkQzGBQ="
-# Use file-based test database
-test_db_path = ROOT / "test_auth.db"
+# Use file-based test database in the OS temp dir so the repo root stays clean
+# (an earlier version wrote test_auth.db into the project root).
+test_db_path = Path(tempfile.gettempdir()) / "nexus_test_auth.db"
 if test_db_path.exists():
     test_db_path.unlink()
 os.environ["DATABASE_URL"] = f"sqlite+aiosqlite:///{test_db_path}"

@@ -7,7 +7,7 @@ import { showToast } from '../../shared/toast.js';
 import { escapeHtml, bucketFor } from '../../shared/utils.js';
 import {
   getProviders, setProviders, getModels, setModels, getSelectedModel, setSelectedModel,
-  getActiveProviderFilter, setActiveProviderFilter
+  getActiveProviderFilter, setActiveProviderFilter, getReasoningEffort
 } from '../../core/state.js';
 import { PROVIDER_COLORS } from '../../shared/constants.js';
 
@@ -229,8 +229,8 @@ export function selectModel(model, opts = {}) {
 
   // Update reasoning effort indicator
   const reasoningEl = elements.modelSelectorBtn.querySelector('.reasoning-effort');
-  const effort = model.reasoningEffort || 'none';
-  const hasReasoning = effort !== 'none' && effort !== 'auto';
+  const effort = getReasoningEffort();
+  const hasReasoning = effort !== 'none';
 
   if (reasoningEl) {
     if (hasReasoning) {

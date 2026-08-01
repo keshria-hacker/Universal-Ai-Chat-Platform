@@ -443,11 +443,11 @@ class OllamaWrapperTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(result[0].name, "Llama 3.1")
             mock_fetch.assert_called_once_with("http://localhost:11434")
 
-    def test_try_start_ollama_calls_real(self):
+    async def test_try_start_ollama_calls_real(self):
         """_try_start_ollama calls the real function."""
         # Mock the async function properly
         with patch("providers.ollama._try_start_ollama", new_callable=AsyncMock) as mock_start:
-            llm._try_start_ollama()
+            await llm._try_start_ollama()
             mock_start.assert_called_once()
 
     def test_cleanup_ollama_calls_real(self):
