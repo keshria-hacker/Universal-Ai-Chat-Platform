@@ -95,6 +95,31 @@ cd frontend
 python -m http.server 5500
 ```
 
+### Docker (Single Container — Backend + Frontend)
+
+**Option 1: Docker CLI**
+```bash
+# Build once
+docker build -f Dockerfile.all -t nexus-all .
+
+# Run
+cp .env.example .env
+# Edit .env with your API keys
+docker run -d -p 8001:8001 -p 5500:5500 --env-file .env nexus-all
+```
+
+**Option 2: Docker Compose**
+```bash
+cp .env.example .env
+# Edit .env with your API keys
+
+# Backend + Frontend only
+docker compose -f docker-compose.all.yml up -d
+
+# With Redis (distributed rate limiting)
+docker compose -f docker-compose.all.yml --profile redis up -d
+```
+
 The launcher automatically:
 1. Creates a Python virtual environment (`venv/`)
 2. Installs dependencies from `requirements.txt` (with SHA-256 caching)
@@ -339,7 +364,7 @@ MIT License — see `LICENSE` for details.
 |------|---------|
 | **RAG / Vector Search** | ✅ **Done** — chunking, embeddings, hybrid retrieval for large documents |
 | **Ollama Auto-Start** | Actually spawn `ollama serve` on demand |
-| **Docker / Compose** | ✅ **Done** — Multi-stage backend build, docker-compose with optional Redis & frontend profiles |
+| **Docker / Compose** | ✅ **Done** — Single-container Dockerfile.all + docker-compose.all.yml (backend + frontend), multi-container docker-compose.yml with optional Redis & frontend profiles |
 | **Multi-User Workspaces** | Teams, shared chats, role-based access |
 | **Function Calling / Tools** | Model tool use with approval UI |
 | **Vision Models** | Image upload + analysis |
