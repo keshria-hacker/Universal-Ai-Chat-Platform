@@ -190,7 +190,6 @@ export function buildMessageNode(msg) {
   node.style.setProperty('--provider-color', info.color);
 
   node.innerHTML = `
-    <div class="msg-avatar" style="color:${info.color}"><i class="fa-solid fa-sparkles"></i></div>
     <div class="msg-body">
       <div class="msg-meta">
         <span class="msg-author">${escapeHtml(model?.name || msg.model || 'Assistant')}</span>
