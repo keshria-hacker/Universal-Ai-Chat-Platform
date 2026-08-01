@@ -196,6 +196,7 @@ export function buildMessageNode(msg) {
         <span class="msg-author">${escapeHtml(model?.name || msg.model || 'Assistant')}</span>
         <span class="msg-provider-tag" style="color:${info.color}">${escapeHtml(info.label)}</span>
         <span class="msg-time">${formatTime(msg.created_at)}</span>
+        ${msg.response_time != null ? `<span class="msg-response-time">${msg.response_time.toFixed(1)}s</span>` : ''}
       </div>
       <div class="msg-content">${msg.content ? renderMarkdown(msg.content) : ''}</div>
       <div class="msg-actions always-visible">
@@ -555,11 +556,11 @@ export async function runGeneration({ content, fileIds, regenerate }) {
       // Reload chat list
       const sidebarModule = await import('../sidebar/sidebar.js');
       sidebarModule.loadChatList();
-      const finalMsg = { role: 'assistant', content: collected, model: model.id, created_at: new Date().toISOString() };
-      setMessages([...getMessages(), finalMsg]);
-      // PHASE: Done — show completion time briefly, then replace with final message
       const elapsedMs = Date.now() - genStartedAt;
       const elapsedSec = (elapsedMs / 1000).toFixed(1);
+      const finalMsg = { role: 'assistant', content: collected, model: model.id, created_at: new Date().toISOString(), response_time: parseFloat(elapsedSec) };
+      setMessages([...getMessages(), finalMsg]);
+      // PHASE: Done — show completion time briefly, then replace with final message
       setThinkingPhase(typingNode, 'done', elapsedSec);
       // Small delay so "Done — Xs" is visible before replace
       await new Promise((r) => setTimeout(r, 600));

@@ -453,6 +453,7 @@ kbd{
 .msg-author{font-size:13px; font-weight:600;}
 .msg-time{font-size:11px; color:var(--text-tertiary);}
 .msg-provider-tag{font-size:11px; color:var(--text-tertiary); font-weight:600; padding:1px 7px; border-radius:999px; background:color-mix(in srgb, var(--provider-color, var(--accent)) 16%, transparent); border:1px solid color-mix(in srgb, var(--provider-color, var(--accent)) 35%, transparent);}
+.msg-response-time{font-size:11px; color:var(--text-tertiary); margin-left:auto; white-space:nowrap;}
 
 .msg.assistant{border-left:3px solid var(--provider-color, var(--accent)); border-radius:var(--radius-lg); padding-left:12px; margin-left:-12px; transition:border-color var(--dur-med) var(--ease);}
 

@@ -44,6 +44,7 @@ class MessageOut(BaseModel):
     role: str
     content: str
     model: str | None = None
+    response_time: float | None = None
     created_at: datetime
 
 

@@ -39,6 +39,7 @@ class Message(Base):
     content: Mapped[str] = mapped_column(Text)
     model: Mapped[str | None] = mapped_column(String(64), nullable=True)
     file_ids: Mapped[str | None] = mapped_column(String(255), nullable=True)  # comma-separated
+    response_time: Mapped[float | None] = mapped_column(nullable=True)  # seconds
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now(UTC))
 
     chat: Mapped["Chat"] = relationship(back_populates="messages")
