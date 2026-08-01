@@ -91,7 +91,7 @@ function setSendButtonState(generating) {
  * Phase-aware response status helper.
  * Updates the assistant message node with the current response phase.
  */
-function setThinkingPhase(node, phase) {
+function setThinkingPhase(node, phase, elapsedSec = null) {
   let statusEl = node.querySelector('.msg-phase-status');
   if (!statusEl) {
     statusEl = document.createElement('div');
@@ -113,8 +113,12 @@ function setThinkingPhase(node, phase) {
   };
 
   const p = phases[phase] || phases.connecting;
+  let displayText = p.text;
+  if (phase === 'done' && elapsedSec !== null) {
+    displayText = `Done — ${elapsedSec}s`;
+  }
   statusEl.className = `msg-phase-status ${phase}`;
-  statusEl.innerHTML = `<i class="${p.icon}"></i><span>${p.text}</span>`;
+  statusEl.innerHTML = `<i class="${p.icon}"></i><span>${displayText}</span>`;
   statusEl.setAttribute('aria-live', 'polite');
 }
 
@@ -553,10 +557,12 @@ export async function runGeneration({ content, fileIds, regenerate }) {
       sidebarModule.loadChatList();
       const finalMsg = { role: 'assistant', content: collected, model: model.id, created_at: new Date().toISOString() };
       setMessages([...getMessages(), finalMsg]);
-      // PHASE: Done — briefly show completion, then replace with final message
-      setThinkingPhase(typingNode, 'done');
-      // Small delay so "Done" is visible before replace
-      await new Promise((r) => setTimeout(r, 400));
+      // PHASE: Done — show completion time briefly, then replace with final message
+      const elapsedMs = Date.now() - genStartedAt;
+      const elapsedSec = (elapsedMs / 1000).toFixed(1);
+      setThinkingPhase(typingNode, 'done', elapsedSec);
+      // Small delay so "Done — Xs" is visible before replace
+      await new Promise((r) => setTimeout(r, 600));
       typingNode.replaceWith(buildMessageNode(finalMsg));
     } else if (!sawFirstToken && !streamError) {
       // Aborted before any token
