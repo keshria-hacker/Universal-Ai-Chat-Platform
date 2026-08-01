@@ -1,6 +1,6 @@
 /**
  * Markdown rendering with syntax highlighting.
- * Uses marked.js and highlight.js from CDN with DOMPurify sanitization.
+ * Uses marked.js 15+ and highlight.js from CDN with DOMPurify sanitization.
  * Supports streaming incremental rendering and final enhanced render pass.
  */
 
@@ -20,96 +20,98 @@ function checkLibraries() {
 }
 
 /**
- * Configure marked.js with GFM options and custom renderers.
+ * Configure marked.js 15+ with GFM options and custom renderers.
  */
 function configureMarked() {
   if (!_marked || _marked.__nexusConfigured) return;
 
-  _marked.setOptions({
-    gfm: true,                    // GitHub Flavored Markdown
-    breaks: true,                 // Single line breaks = <br>
+  // marked.js 15+ uses marked.use() for configuration
+  _marked.use({
+    gfm: true,
+    breaks: true,
     pedantic: false,
-    smartLists: true,
-    smartypants: false,
-    xhtml: false,
-    headerIds: false,
-    mangle: false,
+    silent: false,
+    async: false,
+    // Custom renderer for security-sensitive elements
+    renderer: {
+      link(token) {
+        if (!token.href) return token.text || '';
+        const safeHref = token.href.startsWith('javascript:') ? '#' : token.href;
+        const target = safeHref.startsWith('http') ? ' target="_blank" rel="noopener noreferrer"' : '';
+        const titleAttr = token.title ? ` title="${escapeHtml(token.title)}"` : '';
+        return `<a href="${escapeHtml(safeHref)}"${target}${titleAttr}>${this.parser.parseInline(token.tokens)}</a>`;
+      },
+      image(token) {
+        if (!token.href) return '';
+        const safeHref = token.href.startsWith('javascript:') ? '' : token.href;
+        const titleAttr = token.title ? ` title="${escapeHtml(token.title)}"` : '';
+        return `<img src="${escapeHtml(safeHref)}" alt="${escapeHtml(token.text || '')}"${titleAttr} loading="lazy">`;
+      },
+      codespan(token) {
+        return `<code>${escapeHtml(token.text)}</code>`;
+      },
+      code(token) {
+        const lang = token.lang && token.lang.trim() ? token.lang.trim() : 'text';
+        const safeLang = escapeHtml(lang);
+        const safeCode = escapeHtml(token.text);
+        return `<pre><code class="language-${safeLang}">${safeCode}</code></pre>`;
+      },
+      blockquote(token) {
+        return `<blockquote>${this.parser.parse(token.tokens)}</blockquote>`;
+      },
+      table(token) {
+        // Build table with scroll wrapper
+        const header = token.header || '';
+        const rows = token.rows || [];
+        return `<div class="table-scroll"><table><thead>${header}</thead><tbody>${rows}</tbody></table></div>`;
+      },
+      tablerow(token) {
+        return `<tr>${this.parser.parseInline(token.tokens)}</tr>`;
+      },
+      tablecell(token) {
+        const tag = token.header ? 'th' : 'td';
+        const align = token.align ? ` style="text-align:${token.align}"` : '';
+        return `<${tag}${align}>${this.parser.parseInline(token.tokens)}</${tag}>`;
+      },
+      hr() {
+        return '<hr>';
+      },
+      heading(token) {
+        return `<h${token.depth}>${this.parser.parseInline(token.tokens)}</h${token.depth}>`;
+      },
+      list(token) {
+        const tag = token.ordered ? 'ol' : 'ul';
+        const startAttr = token.ordered && token.start && token.start !== 1 ? ` start="${token.start}"` : '';
+        return `<${tag}${startAttr}>${this.parser.parse(token.tokens)}</${tag}>`;
+      },
+      listitem(token) {
+        if (token.task) {
+          const checkAttr = token.checked ? ' checked' : '';
+          return `<li class="task-list-item"><input type="checkbox" disabled${checkAttr}> ${this.parser.parseInline(token.tokens)}</li>`;
+        }
+        return `<li>${this.parser.parse(token.tokens)}</li>`;
+      },
+      paragraph(token) {
+        return `<p>${this.parser.parseInline(token.tokens)}</p>`;
+      },
+      strong(token) {
+        return `<strong>${this.parser.parseInline(token.tokens)}</strong>`;
+      },
+      em(token) {
+        return `<em>${this.parser.parseInline(token.tokens)}</em>`;
+      },
+      del(token) {
+        return `<del>${this.parser.parseInline(token.tokens)}</del>`;
+      },
+      text(token) {
+        return escapeHtml(token.text);
+      },
+      br() {
+        return '<br>';
+      },
+    },
   });
 
-  // Custom renderer for security-sensitive elements
-  const renderer = {
-    link(href, title, text) {
-      if (!href) return text || '';
-      const safeHref = href.startsWith('javascript:') ? '#' : href;
-      const target = safeHref.startsWith('http') ? ' target="_blank" rel="noopener noreferrer"' : '';
-      const titleAttr = title ? ` title="${escapeHtml(title)}"` : '';
-      return `<a href="${escapeHtml(safeHref)}"${target}${titleAttr}>${text}</a>`;
-    },
-    image(href, title, text) {
-      if (!href) return '';
-      const safeHref = href.startsWith('javascript:') ? '' : href;
-      const titleAttr = title ? ` title="${escapeHtml(title)}"` : '';
-      return `<img src="${escapeHtml(safeHref)}" alt="${escapeHtml(text || '')}"${titleAttr} loading="lazy">`;
-    },
-    codespan(code) {
-      return `<code>${escapeHtml(code)}</code>`;
-    },
-    code(code, language) {
-      const lang = language && language.trim() ? language.trim() : 'text';
-      const safeLang = escapeHtml(lang);
-      const safeCode = escapeHtml(code);
-      return `<pre><code class="language-${safeLang}">${safeCode}</code></pre>`;
-    },
-    blockquote(quote) {
-      return `<blockquote>${quote}</blockquote>`;
-    },
-    table(header, body) {
-      return `<div class="table-scroll"><table><thead>${header}</thead><tbody>${body}</tbody></table></div>`;
-    },
-    tablerow(content) {
-      return `<tr>${content}</tr>`;
-    },
-    tablecell(content, flags) {
-      const tag = flags.header ? 'th' : 'td';
-      const align = flags.align ? ` style="text-align:${flags.align}"` : '';
-      return `<${tag}${align}>${content}</${tag}>`;
-    },
-    hr() {
-      return '<hr>';
-    },
-    heading(text, level) {
-      return `<h${level}>${text}</h${level}>`;
-    },
-    list(body, ordered, start) {
-      const tag = ordered ? 'ol' : 'ul';
-      const startAttr = ordered && start && start !== 1 ? ` start="${start}"` : '';
-      return `<${tag}${startAttr}>${body}</${tag}>`;
-    },
-    listitem(text, task, checked) {
-      if (task) {
-        const checkAttr = checked ? ' checked' : '';
-        return `<li class="task-list-item"><input type="checkbox" disabled${checkAttr}> ${text}</li>`;
-      }
-      return `<li>${text}</li>`;
-    },
-    paragraph(text) {
-      return `<p>${text}</p>`;
-    },
-    strong(text) {
-      return `<strong>${text}</strong>`;
-    },
-    em(text) {
-      return `<em>${text}</em>`;
-    },
-    del(text) {
-      return `<del>${text}</del>`;
-    },
-    br() {
-      return '<br>';
-    },
-  };
-
-  _marked.use({ renderer });
   _marked.__nexusConfigured = true;
 }
 
@@ -215,7 +217,7 @@ export async function enhanceCodeBlocks(container) {
     pre.replaceWith(block);
     block.appendChild(pre);
 
-    // Copy button handler (event delegation could be used instead)
+    // Copy button handler
     const copyBtn = block.querySelector('.copy-code-btn');
     if (copyBtn) {
       copyBtn.addEventListener('click', async (e) => {
@@ -305,7 +307,7 @@ export function renderMarkdown(markdown) {
 
 /**
  * Render markdown for STREAMING - produces visually stable output during incremental updates.
- * Uses a lightweight approach: maintains raw markdown buffer and re-renders progressively.
+ * Uses marked.js 15+ parse with fallback to safe escaped rendering on parse errors.
  * Does NOT apply syntax highlighting during streaming (done in final pass).
  * @param {string} markdown - Accumulated markdown text so far
  * @returns {string} - HTML string safe for streaming display
@@ -314,18 +316,14 @@ export function renderMarkdownStream(markdown) {
   checkLibraries();
   configureMarked();
 
-  if (!_marked?.parseInline) {
+  if (!_marked?.parse) {
     // Fallback: escaped text with line breaks
     return escapeHtml(markdown || '').replace(/\n/g, '<br>');
   }
 
   try {
-    // For streaming, we use a more careful approach:
-    // Parse with marked but with minimal options to avoid breaking on incomplete syntax
-    const raw = _marked.parse(markdown || '', {
-      // During streaming, be lenient with incomplete constructs
-      silent: true
-    });
+    // Parse with marked - marked 15 handles incomplete markdown reasonably
+    const raw = _marked.parse(markdown || '');
 
     // Sanitize but allow basic markdown elements
     let safeHtml = raw;
