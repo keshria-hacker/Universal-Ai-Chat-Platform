@@ -8,6 +8,36 @@ import time
 import webbrowser
 from pathlib import Path
 
+# ──────────────────────────────────────────────────────────────────────────────
+# Early check for Windows AppLocker / Application Control blocking pandas DLLs
+# This gives a clear message instead of a cryptic traceback
+# ──────────────────────────────────────────────────────────────────────────────
+try:
+    import pandas  # noqa: F401
+except ImportError:
+    # Not installed yet - will be handled by pip install
+    pass
+except OSError as e:
+    if "Application Control policy" in str(e) or "blocked this file" in str(e):
+        border = "=" * 70
+        print(f"\n{border}", file=sys.stderr)
+        print("  BLOCKED: Windows AppLocker / Application Control Policy", file=sys.stderr)
+        print(f"  {e}", file=sys.stderr)
+        print(border, file=sys.stderr)
+        print("  This folder path is restricted by your organization's security policy.", file=sys.stderr)
+        print("  The code is fine — the OS is preventing pandas DLLs from loading here.", file=sys.stderr)
+        print("", file=sys.stderr)
+        print("  SOLUTION: Clone/run from a NON-RESTRICTED path:", file=sys.stderr)
+        print("    git clone https://github.com/keshria-hacker/Universal-Ai-Chat-Platform.git", file=sys.stderr)
+        print("    cd Universal-Ai-Chat-Platform", file=sys.stderr)
+        print("    python start.py", file=sys.stderr)
+        print("", file=sys.stderr)
+        print("  Or ask IT to whitelist this path in AppLocker.", file=sys.stderr)
+        print(f"{border}\n", file=sys.stderr)
+        sys.exit(1)
+    # Re-raise other OSErrors
+    raise
+
 try:
     import psutil
 except Exception:  # pragma: no cover - optional dependency
