@@ -575,6 +575,18 @@ kbd{
 .stream-cursor{display:inline-block; width:2px; height:1.1em; background:var(--accent); margin-left:1px; vertical-align:text-bottom; animation:blink .8s step-end infinite; border-radius:1px;}
 @keyframes blink{50%{opacity:0;}}
 
+/* Phase status indicator — shows Connecting / Thinking / Writing */
+.msg-phase-status{
+  display:inline-flex; align-items:center; gap:6px;
+  font-size:11.5px; font-weight:500; color:var(--accent);
+  padding:2px 0 4px;
+}
+.msg-phase-status i{font-size:10px;}
+.msg-phase-status.connecting i{animation:phasePulse 1.2s var(--ease) infinite;}
+.msg-phase-status.thinking i{animation:thinkBrain 1.2s var(--ease) infinite;}
+.msg-phase-status.writing i{animation:none;}
+@keyframes phasePulse{0%,100%{opacity:.5; transform:scale(1);} 50%{opacity:1; transform:scale(1.1);}}
+
 /* Reasoning (thinking) section in assistant messages */
 .msg-reasoning{margin:0 0 10px;}
 .msg-reasoning details{

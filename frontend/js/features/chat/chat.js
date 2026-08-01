@@ -10,7 +10,7 @@ import {
   getMessages, setMessages, getActiveChatId, setActiveChatId,
   getSelectedModel, selectModel, getModels, getAttachedFiles, setAttachedFiles,
   getLastUserText, setLastUserText, getIsGenerating, setIsGenerating,
-  getAbortController, setAbortController, getWebSearchEnabled,
+  getAbortController, setAbortController, getWebSearchEnabled, setWebSearchEnabled,
   getMaxTokens, getReasoningEffort, getTemperature,
   getChats, setChats,
   resetChatState
@@ -85,6 +85,37 @@ function setSendButtonState(generating) {
     stopBtn.style.display = 'none';
     document.title = 'Nexus — Universal AI Chat Platform';
   }
+}
+
+/**
+ * Phase-aware response status helper.
+ * Updates the assistant message node with the current response phase.
+ */
+function setThinkingPhase(node, phase) {
+  let statusEl = node.querySelector('.msg-phase-status');
+  if (!statusEl) {
+    statusEl = document.createElement('div');
+    statusEl.className = 'msg-phase-status';
+    const body = node.querySelector('.msg-body');
+    const ref = body.querySelector('.msg-content') || body.querySelector('.typing-indicator');
+    if (ref) {
+      body.insertBefore(statusEl, ref);
+    } else {
+      body.appendChild(statusEl);
+    }
+  }
+
+  const phases = {
+    connecting: { text: 'Connecting…', icon: 'fa-solid fa-plug-circle-bolt' },
+    thinking:   { text: 'Thinking…',   icon: 'fa-solid fa-brain' },
+    writing:    { text: 'Writing…',    icon: 'fa-solid fa-pen-to-square' },
+    done:       { text: 'Done',        icon: 'fa-solid fa-check' },
+  };
+
+  const p = phases[phase] || phases.connecting;
+  statusEl.className = `msg-phase-status ${phase}`;
+  statusEl.innerHTML = `<i class="${p.icon}"></i><span>${p.text}</span>`;
+  statusEl.setAttribute('aria-live', 'polite');
 }
 
 /**
@@ -370,18 +401,9 @@ export async function runGeneration({ content, fileIds, regenerate }) {
 
   setIsGenerating(true);
   setSendButtonState(true);
-  // Yield to the browser so it can paint the stop-button generating
-  // state BEFORE any stream I/O begins. Without this macrotask, the
-  // entire fetch + for-await-of loop can resolve in microtasks
-  // (especially when the response arrives as a single chunk), and the
-  // browser never gets a paint cycle — it sees the idle state only.
+  // Yield so the stop-button generating state paints before stream I/O begins
   await new Promise((r) => setTimeout(r, 0));
 
-  // Record when the generating state was set so we can enforce a
-  // minimum display duration — guarantees the stop button stays
-  // visible long enough for the user to notice even on instant
-  // responses. 2000 ms ensures it's impossible to miss (a human
-  // blink is ~150 ms, reaction time ~200-300 ms).
   const genStartedAt = Date.now();
   const genId = ++_genCounter;
   const MIN_STOP_VISIBLE_MS = 2000;
@@ -389,7 +411,7 @@ export async function runGeneration({ content, fileIds, regenerate }) {
   elements.errorState?.classList.add('hidden');
   const info = getProviderInfo(model);
 
-  // Show typing indicator
+  // Initial assistant message node with CONNECTING phase
   const typingNode = document.createElement('div');
   typingNode.className = 'msg assistant';
   typingNode.style.setProperty('--provider-color', info.color);
@@ -397,10 +419,12 @@ export async function runGeneration({ content, fileIds, regenerate }) {
     <div class="msg-avatar" style="color:${info.color}"><i class="fa-solid fa-sparkles"></i></div>
     <div class="msg-body">
       <div class="msg-meta"><span class="msg-author">${escapeHtml(model.name)}</span><span class="msg-provider-tag" style="color:${info.color}">${escapeHtml(info.label)}</span></div>
-      <div class="typing-indicator"><span></span><span></span><span></span></div>
     </div>`;
   elements.messages?.appendChild(typingNode);
   scrollToBottom(true);
+
+  // PHASE: Connecting
+  setThinkingPhase(typingNode, 'connecting');
 
   const controller = new AbortController();
   setAbortController(controller);
@@ -420,11 +444,17 @@ export async function runGeneration({ content, fileIds, regenerate }) {
   let collected = '';
   let reasoningContent = '';
   let sawFirstToken = false;
+  let hasStartedWriting = false;
   let newChatId = null;
   let streamError = null;
+  let streamStarted = false;
 
   try {
     const stream = await streamChatCompletion(body, controller.signal);
+    streamStarted = true;
+
+    // PHASE: Thinking — stream connected, waiting for first token
+    setThinkingPhase(typingNode, 'thinking');
 
     for await (const { event, data } of parseSSE(stream)) {
       if (event === 'error') {
@@ -448,6 +478,12 @@ export async function runGeneration({ content, fileIds, regenerate }) {
         if (metaEl) metaEl.insertAdjacentHTML('beforeend', `<span class="msg-time">${nowTime()}</span>`);
         const indicator = typingNode.querySelector('.typing-indicator');
         if (indicator) indicator.outerHTML = '<div class="msg-content"><span class="stream-cursor"></span></div>';
+      }
+
+      // PHASE: Writing — first visible content token arrived
+      if (!hasStartedWriting) {
+        hasStartedWriting = true;
+        setThinkingPhase(typingNode, 'writing');
       }
 
       collected += data;
@@ -504,9 +540,8 @@ export async function runGeneration({ content, fileIds, regenerate }) {
       }
       scrollToBottom(true);
 
-      // If model inaccessible, refresh models
       if (errLow.includes('not available') || errLow.includes('model not found') || errLow.includes('does not exist')) {
-        // This will be handled by the models module
+        // handled by models module
       }
     } else if (collected) {
       // Save chat ID on success
@@ -518,6 +553,10 @@ export async function runGeneration({ content, fileIds, regenerate }) {
       sidebarModule.loadChatList();
       const finalMsg = { role: 'assistant', content: collected, model: model.id, created_at: new Date().toISOString() };
       setMessages([...getMessages(), finalMsg]);
+      // PHASE: Done — briefly show completion, then replace with final message
+      setThinkingPhase(typingNode, 'done');
+      // Small delay so "Done" is visible before replace
+      await new Promise((r) => setTimeout(r, 400));
       typingNode.replaceWith(buildMessageNode(finalMsg));
     } else if (!sawFirstToken && !streamError) {
       // Aborted before any token
@@ -531,21 +570,13 @@ export async function runGeneration({ content, fileIds, regenerate }) {
   setIsGenerating(false);
   setAbortController(null);
 
-  // Enforce minimum stop-button visibility so the user always sees
-  // the generating state, even on instant responses.
+  // Enforce minimum stop-button visibility
   const elapsed = Date.now() - genStartedAt;
   if (elapsed < MIN_STOP_VISIBLE_MS) {
     await new Promise((r) => setTimeout(r, MIN_STOP_VISIBLE_MS - elapsed));
   }
-  // ALWAYS yield to the browser (macrotask) so it can paint the
-  // generating state.  Without this, when elapsed >= MIN_STOP_VISIBLE_MS
-  // the revert runs in the same microtask chain as stream completion
-  // and the browser never paints the stop state — it only sees idle.
   await new Promise((r) => setTimeout(r, 16));
 
-  // Only reset the button if we're still the most recent generation
-  // — prevents a stale minimum-duration pause from stealing the
-  // stop state from a newer generation.
   if (genId === _genCounter) {
     setSendButtonState(false);
   }
@@ -628,9 +659,10 @@ export function initChatEvents() {
 
   // Web search toggle
   elements.webSearchToggle?.addEventListener('click', () => {
-    // State managed in core/state.js
-    elements.webSearchToggle.classList.toggle('active');
-    elements.webSearchToggle.setAttribute('aria-pressed', String(elements.webSearchToggle.classList.contains('active')));
+    const enabled = !getWebSearchEnabled();
+    setWebSearchEnabled(enabled);
+    elements.webSearchToggle.classList.toggle('active', enabled);
+    elements.webSearchToggle.setAttribute('aria-pressed', String(enabled));
   });
 
   // Composer drag-drop
