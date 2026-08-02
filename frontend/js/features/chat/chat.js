@@ -5,7 +5,7 @@
 import { getApiBaseUrl, apiFetch, streamChatCompletion, parseSSE, ApiError } from '../../shared/http.js';
 import { showToast, showError } from '../../shared/toast.js';
 import { escapeHtml, formatTime, nowTime, formatBytes, extOf } from '../../shared/utils.js';
-import { renderMarkdown, renderMarkdownStream } from '../../shared/markdown.js';
+import { renderMarkdown, renderMarkdownStream, finalizeMarkdownRender } from '../../shared/markdown.js';
 import {
   getMessages, setMessages, getActiveChatId, setActiveChatId,
   getSelectedModel, selectModel, getModels, getAttachedFiles, setAttachedFiles,
@@ -493,7 +493,8 @@ export async function runGeneration({ content, fileIds, regenerate }) {
       collected += data;
       const contentEl = typingNode.querySelector('.msg-content');
       if (contentEl) {
-        contentEl.innerHTML = escapeHtml(collected).replace(/\n/g, '<br>') + '<span class="stream-cursor"></span>';
+        // Use streaming markdown renderer for visually stable incremental updates
+        contentEl.innerHTML = renderMarkdownStream(collected) + '<span class="stream-cursor"></span>';
       }
       scrollToBottomIfNearBottom();
     }
@@ -563,7 +564,10 @@ export async function runGeneration({ content, fileIds, regenerate }) {
       setThinkingPhase(typingNode, 'done', elapsedSec);
       // Small delay so "Done — Xs" is visible before replace
       await new Promise((r) => setTimeout(r, 600));
-      typingNode.replaceWith(buildMessageNode(finalMsg));
+      const finalNode = buildMessageNode(finalMsg);
+      typingNode.replaceWith(finalNode);
+      // Final render pass: ensure complete markdown with syntax highlighting
+      await finalizeMarkdownRender(finalNode, collected);
     } else if (!sawFirstToken && !streamError) {
       // Aborted before any token
       typingNode.remove();

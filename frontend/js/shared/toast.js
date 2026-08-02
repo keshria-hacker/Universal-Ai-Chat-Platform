@@ -3,7 +3,7 @@
  * Provides consistent, dismissible notifications with deduplication.
  */
 
-import { $, createEl, show, hide, addClass, removeClass } from './dom.js';
+import { $, createEl, show, hide, addClass, removeClass, escapeHtml } from './utils.js';
 import { TOAST_TYPES, TOAST_ICONS } from './constants.js';
 
 const TOAST_CONTAINER_ID = 'toastContainer';
@@ -38,7 +38,7 @@ export function showToast({ type = 'info', title = '', message = '', duration = 
     dataset: { dedup: dedupKey },
   }, `
     <i class="fa-solid ${TOAST_ICONS[type] || TOAST_ICONS.info}"></i>
-    <div class="toast-text">${title ? `<strong>${title}</strong>` : ''}${message ? ` ${message}` : ''}</div>
+    <div class="toast-text">${title ? `<strong>${escapeHtml(title)}</strong>` : ''}${message ? ` ${escapeHtml(message)}` : ''}</div>
     <button class="toast-close" aria-label="Dismiss"><i class="fa-solid fa-xmark"></i></button>
     <div class="toast-bar"></div>
   `);
