@@ -121,8 +121,8 @@ Before starting, make sure you have:
 ### 1. Clone Nexus
 
 ```bash
-git clone https://github.com/keshria-hacker/Universal-Ai-Chat-Platform-.git
-cd Universal-Ai-Chat-Platform--
+git clone https://github.com/keshria-hacker/Universal-Ai-Chat-Platform.git
+cd Universal-Ai-Chat-Platform
 ```
 
 ### 2. Configure Environment
