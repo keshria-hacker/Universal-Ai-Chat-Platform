@@ -1,378 +1,409 @@
-# Nexus — Universal AI Chat Platform
+<div align="center">
 
-**Nexus** is an open-source, privacy-first, universal AI chat platform that unifies multiple Large Language Models (LLMs) into a single, modern interface. Instead of switching between different AI services, Nexus allows you to connect cloud-based LLM providers and local models through **Ollama**, giving you complete freedom to choose the AI that best fits your workflow.
+# Nexus
 
-Designed for developers, researchers, students, and AI enthusiasts, Nexus aims to become a complete AI workspace where every model, provider, and AI tool can be accessed from one platform.
+### Universal AI Chat Platform
 
-> 🚧 **Project Status:** Active Development (v1.1)
->
-> Nexus v1.1 continues to build on the core architecture with UI refinements, bug fixes, and improved provider detection. Features, APIs, and the user interface may change as development progresses.
+**One interface. Every model. Your workflow.**
+
+A privacy-first AI workspace for chatting with cloud and local LLMs from a single modern interface.
+
+[![Python](https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Status](https://img.shields.io/badge/Status-Active%20Development-orange)]()
+[![Version](https://img.shields.io/badge/Version-v1.1-6C63FF)]()
+
+</div>
 
 ---
 
-## ✨ Features (Currently Implemented)
+## ✨ Meet Nexus
 
-### Core Chat & Multi-Provider
-- 🌐 **Connect multiple LLM providers** from one application
-- 🤖 **Support for local AI models** using **Ollama** (manual `ollama serve` required)
-- ⚡ **Fast, responsive chat interface** with streaming responses
-- 🔄 **Switch between AI providers instantly** mid-conversation
-- 💬 **Streaming AI responses** with real-time tokens
+Nexus is an open-source, privacy-first AI chat platform that brings multiple Large Language Models into one unified workspace.
 
-### Document Processing
-- 📂 **Upload and chat with documents** (PDF, DOCX, XLSX, PPTX, CSV, code, text, and more)
-- 🔍 **Full-text extraction** from all supported formats
-- 🧠 **RAG-enhanced retrieval** — documents are chunked (~500 tokens), embedded, and only the top-5 relevant chunks are injected into the prompt (no context stuffing)
+Connect cloud providers such as **OpenAI, Anthropic, Gemini, NVIDIA NIM, Groq, Mistral, DeepSeek, OpenRouter** and more — or run models locally through **Ollama**.
 
-### Settings & Configuration
-- 🔑 **Runtime API key management** — add/remove provider keys in Settings → Providers without restarting the server
-- 📝 **Persistent conversation history** with date-bucketed sidebar
-- 🎨 **Theme system** (dark/light/system) with 6 accent color options
-- 🛡️ **Privacy-focused local architecture** (single-user, password-hashed auth)
+Switch models, upload documents, use RAG, search the web, manage provider keys, and keep your conversations in one place.
 
-### Technical Foundation
-- ⚙️ **REST API** powered by FastAPI with auto-generated Swagger docs
-- 🧪 **GitHub Actions CI** support
-- 📚 **Extensible Skills system** — parameterized prompt templates with dependency resolution and auto-suggest
-- 🔐 **Local authentication** (scrypt hashing, Bearer tokens, HTTP-only cookies, CSRF protection)
+> **Nexus v1.1 is under active development.** Features and APIs may evolve as the project grows.
+
+---
+
+## 🖥️ Interface
+
+<p align="center">
+  <img
+    src="docs/screenshots/nexus-chat.png"
+    alt="Nexus Universal AI Chat Platform"
+    width="100%"
+  />
+</p>
+
+<p align="center">
+  <sub>One box, every model — switch providers without leaving your workspace.</sub>
+</p>
+
+---
+
+## 🚀 Key Features
+
+### 🤖 Multi-Provider AI
+
+Connect multiple cloud and local AI providers from one interface and switch between models without changing applications.
+
+### ⚡ Streaming Chat
+
+Responses are streamed token-by-token for a fast and responsive conversational experience.
+
+### 🦙 Local AI with Ollama
+
+Use locally installed Ollama models directly inside Nexus while keeping inference on your machine.
+
+### 📚 Document Chat + RAG
+
+Upload documents and ask questions about their contents.
+
+Nexus chunks documents, generates embeddings, retrieves relevant sections, and sends only the most useful context to the model.
+
+### 🌐 Web Search
+
+Augment conversations with live web results using the built-in search integration.
+
+### 🧩 Skills
+
+Reusable AI workflows for tasks such as debugging, API design, coding review, and web-assisted research.
+
+### 💬 Persistent Conversations
+
+Conversation history is stored locally and organized in a date-based sidebar.
+
+### 🎨 Customizable Interface
+
+Choose between light, dark, or system themes with multiple accent colors.
+
+### 🔐 Privacy Focused
+
+Local authentication, encrypted provider keys, secure password hashing, and local conversation storage.
 
 ---
 
 ## 🤖 Supported AI Providers
 
-| Provider | ID | Type | API Key Required | LiteLLM Prefix |
-|----------|-----|------|------------------|----------------|
-| Anthropic | `anthropic` | Cloud | Yes | `anthropic/` |
-| OpenAI | `openai` | Cloud | Yes | `openai/` |
-| NVIDIA NIM | `nvidia` | Cloud | Yes | `nvidia_nim/` |
-| Together AI | `together` | Cloud | Yes | (none) |
-| Groq | `groq` | Cloud | Yes | (none) |
-| OpenRouter | `openrouter` | Cloud | Yes | (none) |
-| DeepSeek | `deepseek` | Cloud | Yes | `deepseek/` |
-| Mistral AI | `mistral` | Cloud | Yes | (none) |
-| Gemini | `gemini` | Cloud | Yes | `gemini/` |
-| Ollama | `ollama` | Local | No | `ollama/` |
-| OmniRoute | `omniroute` | Local | Yes | `openai/` |
+| Provider | Type | API Key |
+|---|:---:|:---:|
+| Anthropic | ☁️ Cloud | Required |
+| OpenAI | ☁️ Cloud | Required |
+| NVIDIA NIM | ☁️ Cloud | Required |
+| Together AI | ☁️ Cloud | Required |
+| Groq | ☁️ Cloud | Required |
+| OpenRouter | ☁️ Cloud | Required |
+| DeepSeek | ☁️ Cloud | Required |
+| Mistral AI | ☁️ Cloud | Required |
+| Google Gemini | ☁️ Cloud | Required |
+| Ollama | 🖥️ Local | Not required |
+| OmniRoute | 🖥️ Local | Required |
 
-> **Note:** Additional providers can be added by extending the provider registry in `backend/providers/__init__.py`.
+The provider registry is extensible, making it possible to add additional providers as Nexus evolves.
 
 ---
 
-## 🚀 Quick Start
+## ⚡ Quick Start
 
-### Windows (Recommended)
+### Requirements
 
-**Option 1:** Double-click `run.bat` (easiest)
-- Opens a command window that stays visible
-- Shows server logs in real-time
-- Press Ctrl+C to stop
+Before starting, make sure you have:
 
-**Option 2:** Run from Command Prompt
-```powershell
-cd "C:\path\to\your\project"
+- Python **3.11+**
+- Git
+- Ollama *(optional — only required for local models)*
+
+### 1. Clone Nexus
+
+```bash
+git clone https://github.com/keshria-hacker/Universal-Ai-Chat-Platform-.git
+cd Universal-Ai-Chat-Platform--
+```
+
+### 2. Configure Environment
+
+Copy the example environment file:
+
+```bash
+cp .env.example .env
+```
+
+Add the API keys for the providers you want to use.
+
+```env
+OPENAI_API_KEY=your_key
+ANTHROPIC_API_KEY=your_key
+NVIDIA_NIM_API_KEY=your_key
+GOOGLE_API_KEY=your_key
+OPENROUTER_API_KEY=your_key
+GROQ_API_KEY=your_key
+```
+
+You don't need to configure every provider.
+
+API keys can also be managed later from:
+
+**Settings → Provider API Keys**
+
+### 3. Start Nexus
+
+#### Windows
+
+Simply run:
+
+```bash
 run.bat
 ```
 
-**Option 3:** Run start.py directly (window stays open)
-```powershell
-cd "C:\path\to\your\project"
+Or:
+
+```bash
 python start.py
 ```
 
-### Linux / macOS
+#### Linux / macOS
+
 ```bash
 ./start.sh
 ```
 
-### Manual Start (Advanced)
+### 4. Open Nexus
+
+Once the servers are running:
+
+| Service | Address |
+|---|---|
+| Nexus | `http://127.0.0.1:5500` |
+| Backend API | `http://127.0.0.1:8001` |
+| Swagger API Docs | `http://127.0.0.1:8001/docs` |
+
+---
+
+## 🐳 Docker
+
+Nexus can also run using Docker.
+
+### Build
+
 ```bash
-# Backend (API Server)
-cd backend
-python -m uvicorn main:app --host 127.0.0.1 --port 8001
-
-# Frontend (Web Server) - in a separate terminal
-cd frontend
-python -m http.server 5500
-```
-
-### Docker (Single Container — Backend + Frontend)
-
-**Option 1: Docker CLI**
-```bash
-# Build once
 docker build -f Dockerfile.all -t nexus-all .
-
-# Run
-cp .env.example .env
-# Edit .env with your API keys
-docker run -d -p 8001:8001 -p 5500:5500 --env-file .env nexus-all
 ```
 
-**Option 2: Docker Compose**
+### Configure
+
 ```bash
 cp .env.example .env
-# Edit .env with your API keys
+```
 
-# Backend + Frontend only
+Add your required API keys to `.env`.
+
+### Run
+
+```bash
+docker run -d \
+  -p 8001:8001 \
+  -p 5500:5500 \
+  --env-file .env \
+  nexus-all
+```
+
+### Docker Compose
+
+```bash
 docker compose -f docker-compose.all.yml up -d
-
-# With Redis (distributed rate limiting)
-docker compose -f docker-compose.all.yml --profile redis up -d
 ```
-
-The launcher automatically:
-1. Creates a Python virtual environment (`venv/`)
-2. Installs dependencies from `requirements.txt` (with SHA-256 caching)
-3. Creates `.env` from `.env.example` if missing
-4. Frees stale ports (8001 backend, 5500 frontend)
-5. Starts both backend and frontend servers
-6. Monitors both processes; Ctrl+C terminates both
-
-### Default URLs
-
-| Service | URL |
-|---------|-----|
-| Frontend | http://127.0.0.1:5500 |
-| Backend API | http://127.0.0.1:8001 |
-| API Documentation (Swagger) | http://127.0.0.1:8001/docs |
-| Ollama (if installed) | http://localhost:11434 |
 
 ---
 
-## ⚙️ Configuration
+## 🦙 Using Ollama
 
-Copy the example configuration:
+Nexus automatically detects available Ollama models.
 
-```bash
-cp .env.example .env
-```
-
-Add only the providers you want to use:
-
-```dotenv
-OPENAI_API_KEY=sk-...
-ANTHROPIC_API_KEY=sk-ant-...
-NVIDIA_NIM_API_KEY=nvapi-...
-GOOGLE_API_KEY=AIza...
-OPENROUTER_API_KEY=sk-or-...
-GROQ_API_KEY=gsk_...
-# ... etc
-```
-
-**API keys can also be managed directly inside the app:**
-
-**Settings → Provider API Keys** — add, update, or remove keys without server restarts. Keys are encrypted at rest (Fernet/AES-128-GCM) and resolved at runtime (DB → `.env` fallback).
-
-Models are automatically grouped and filtered according to available providers.
-
----
-
-## 🦙 Ollama Support
-
-Nexus automatically detects local Ollama installations.
+Install or pull a model:
 
 ```bash
 ollama pull llama3.2
+```
+
+Start Ollama:
+
+```bash
 ollama serve
 ```
 
-All downloaded models automatically appear inside the model selector.
+Downloaded models will automatically appear inside the Nexus model selector.
 
-To use another Ollama server, change in `.env`:
-```dotenv
+To use another Ollama server:
+
+```env
 OLLAMA_BASE_URL=http://your-ollama-host:11434
 ```
 
-> **Known limitation:** The "auto-start Ollama" feature is currently a stub — you must run `ollama serve` manually. See `backend/llm.py` `_try_start_ollama()`.
+> Ollama currently needs to be started manually.
 
 ---
 
-## 👤 Local Authentication
+## 📂 Document Support
 
-On first launch, Nexus asks you to create a local account.
+Nexus can extract and work with multiple document and source-code formats.
 
-Requirements:
-- Username: minimum 3 characters
-- Password: minimum 10 characters
+| Format | Support |
+|---|:---:|
+| PDF | ✅ |
+| DOCX | ✅ |
+| XLSX | ✅ |
+| PPTX | ✅ |
+| CSV | ✅ |
+| TXT / Markdown | ✅ |
+| JSON | ✅ |
+| HTML / XML | ✅ |
+| Source Code | ✅ |
 
-No default credentials are provided. Passwords are hashed with **scrypt** (N=16384, r=8, p=1).
+### RAG Pipeline
 
-**Forgot credentials?** Use the included reset script:
-```bash
-python -m backend.reset_password testusr Reset@5fd19beb0f5b
-```
+Large documents are automatically:
 
----
+**Extracted → Chunked → Embedded → Retrieved → Added to Context**
 
-## 📂 Supported Document Formats
-
-| Format | Library | Extraction Method |
-|--------|---------|-------------------|
-| `.txt`, `.md` | — | Direct text read |
-| `.json`, `.html`, `.xml` | — | Direct text read |
-| `.py`, `.java`, `.js`, `.c`, ... | — | Direct text read (source code) |
-| `.pdf` | pypdf | `PdfReader().pages` |
-| `.docx` | python-docx | Paragraph text extraction |
-| `.csv` | pandas | `read_csv()` → `to_string()` |
-| `.xlsx` | openpyxl | Cell-by-cell iteration |
-| `.pptx` | python-pptx | Slide + shape text extraction |
-
-> **RAG-enabled:** Documents are automatically chunked (~500 tokens with 100-token overlap), embedded via ChromaDB (all-MiniLM-L6-v2), and only the top-5 most relevant chunks are injected into the prompt. This avoids context stuffing and keeps responses focused. See `backend/rag.py` for details.
+Only the most relevant document sections are sent to the selected model, helping reduce unnecessary context usage.
 
 ---
 
-## 🧪 Extensible Skills System
+## 🌐 Web Search
 
-Nexus includes a **Skills** subsystem — parameterized prompt templates with dependency resolution and auto-suggest.
+Enable **Web Search** directly from the Nexus composer to provide the model with current web information.
 
-### Built-in Skills (v1.1)
-| Skill | Category | Invocation | Description |
-|-------|----------|------------|-------------|
-| API Design Assistant | engineering | `both` | Design REST/GraphQL APIs |
-| Coding Standards Review | engineering | `both` | Review code against style guides |
-| Debugging Assistant | engineering | `both` | Systematic debugging workflow |
-| Web Search Assistant | productivity | `auto` | Augment responses with live search |
+Supported search backends include:
 
-Skills are defined as `SKILL.md` files in `config/skills/<skill-name>/` with YAML front matter.
-
-### Skill Endpoints
-| Endpoint | Method | Purpose |
-|----------|--------|---------|
-| `/api/skills/` | GET | List all skills (filterable) |
-| `/api/skills/categories` | GET | List categories |
-| `/api/skills/{id}` | GET | Skill detail with params |
-| `/api/skills/execute` | POST | Execute a skill |
-| `/api/skills/chain` | POST | Chain multiple skills |
-| `/api/skills/auto-suggest` | POST | Suggest skills from context |
+- **DuckDuckGo Lite** — default, no API key required
+- **Tavily** — optional
+- **Brave Search** — optional
 
 ---
 
-## 🔍 Web Search Augmentation
+## 🧩 Skills
 
-Enable **Web Search** in the composer toolbar to augment responses with live results.
+Nexus includes an extensible Skills system for reusable AI workflows.
 
-- **Default:** DuckDuckGo Lite (no API key required)
-- **Optional upgrades:** Tavily, Brave (set `WEB_SEARCH_PROVIDER` + `WEB_SEARCH_API_KEY` in `.env`)
+Current built-in skills include:
 
-Search results are injected as a system message so the model can cite sources.
+| Skill | Purpose |
+|---|---|
+| API Design Assistant | Design REST / GraphQL APIs |
+| Coding Standards Review | Review code quality and standards |
+| Debugging Assistant | Structured debugging workflows |
+| Web Search Assistant | Enhance responses with live search |
+
+Custom skills can be created using `SKILL.md` files.
 
 ---
 
-## 🏗️ Architecture Overview
+## 🛠️ Tech Stack
 
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                           FRONTEND (port 5500)                          │
-│  Vanilla JS SPA — feature modules: auth, chat, models, settings, skills │
-└────────────────────────────┬────────────────────────────────────────────┘
-                             │ apiFetch() / streamChat()
-┌────────────────────────────┴────────────────────────────────────────────┐
-│                    BACKEND (port 8001)                                   │
-│  FastAPI + SQLAlchemy + LiteLLM                                          │
-│  ├── /api/auth/*     → auth.py (register, login, session, CSRF)         │
-│  ├── /api/*          → api.py (chat, models, files, providers)          │
-│  └── /api/skills/*   → skills/api_skills.py (skills CRUD + execute)     │
-└────────────────────────────┬────────────────────────────────────────────┘
-                             │
-          ┌──────────────────┼──────────────────┐
-          │                  │                  │
-    ┌─────┴─────┐      ┌──────┴──────┐    ┌─────┴─────┐
-    │ SQLite    │      │ Document    │    │ Web Search│
-    │ (history/ │      │ Extraction  │    │(DuckDuckGo│
-    │ nexus.db) │      │ (document.py)│    │ Tavily/   │
-    │           │      │             │    │ Brave)    │
-    └───────────┘      └─────────────┘    └───────────┘
-```
+| Layer | Technology |
+|---|---|
+| Backend | Python + FastAPI |
+| Frontend | Vanilla JavaScript SPA |
+| Database | SQLite + SQLAlchemy |
+| LLM Integration | LiteLLM |
+| RAG / Vector Search | ChromaDB |
+| Authentication | Local Auth |
+| API | REST + SSE Streaming |
+| Deployment | Docker / Docker Compose |
+
+---
+
+## 🔐 Security & Privacy
+
+Nexus is currently designed as a **local, single-user application**.
+
+Security features include:
+
+- 🔒 Provider API keys encrypted at rest
+- 🔑 scrypt password hashing
+- 🍪 HTTP-only authentication cookies
+- 🛡️ CSRF protection
+- 🚫 Debug mode disabled by default
+- 💾 Local conversation storage
+
+> **Important:** Nexus is not currently intended to be exposed directly to the public internet without additional production security configuration.
+
+See [`SECURITY.md`](SECURITY.md) for security and vulnerability reporting information.
 
 ---
 
 ## 🧪 Testing
 
+Run the test suite from the project root:
+
 ```bash
-# From project root (with venv activated)
 venv\Scripts\python.exe -m unittest discover -s tests -v
 ```
 
-Test coverage includes:
-- Authentication (hashing, tokens, security properties)
-- Document extraction (all formats, error handling, preview truncation)
-- Schema validation
-- Model discovery (live fetch, Ollama, fallback logic)
-- Skill registry (SKILL.md loading, parameter validation)
-- Streaming (SSE event formatting)
-- Web search (parser, format_context, live search)
+Tests cover core functionality including authentication, document processing, model discovery, streaming, Skills, and web search.
 
 ---
 
-## 📋 Requirements
+## 🗺️ Roadmap
 
-- Python 3.11+
-- Ollama (optional, for local models)
-- Git (for cloning)
+Nexus is actively evolving toward a more complete universal AI workspace.
 
-**Key Python dependencies:** FastAPI 0.115, Uvicorn 0.34, LiteLLM 1.56, SQLAlchemy 2.0, Pydantic 2.11, cryptography, ChromaDB 1.5+, python-magic (Linux) / python-magic-bin (Windows).
-
-See `requirements.txt` for complete list.
-
----
-
-## 🔒 Security Considerations
-
-Nexus v1.1 is a **local, single-user application**:
-- Provider API keys added via Settings are **encrypted at rest** (Fernet with `MASTER_KEY` from `.env`)
-- Local account passwords use **scrypt** (memory-hard KDF)
-- Sessions use **Bearer tokens** + **HTTP-only cookies** with **CSRF double-submit protection**
-- Debug mode is **OFF by default** (`APP_DEBUG=false`)
-
-> ⚠️ **Do not expose this instance to the public internet** without:
-> - Changing `ENV=production`
-> - Setting strong `ALLOWED_ORIGINS`
-> - Using a reverse proxy with TLS
-> - Rotating `MASTER_KEY` periodically
-> - Reviewing rate limits for your threat model
-
-See `SECURITY.md` for vulnerability reporting.
+- [x] Multi-provider AI chat
+- [x] Local Ollama support
+- [x] Streaming responses
+- [x] Document processing
+- [x] RAG / Vector Search
+- [x] Web Search
+- [x] Skills system
+- [x] Docker support
+- [ ] Automatic Ollama startup
+- [ ] Function Calling / Tools
+- [ ] Vision & image understanding
+- [ ] MCP integration
+- [ ] Multi-user workspaces
+- [ ] Desktop application
+- [ ] Plugin marketplace
 
 ---
 
+## 🤝 Contributing
+
+Contributions, bug reports, feature requests, and improvements are welcome.
 
 ### Development Setup
+
 ```bash
 git clone https://github.com/keshria-hacker/Universal-Ai-Chat-Platform-.git
 cd Universal-Ai-Chat-Platform--
 cp .env.example .env
-# Edit .env with your MASTER_KEY and any API keys
 python start.py
 ```
 
-### Code Style
-- Python: `ruff` + `mypy` (config in `pyproject.toml`)
-- JavaScript: ES modules, no build step
-- Commits: Conventional Commits (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`)
+When contributing, please keep changes focused and follow the existing project structure and coding conventions.
 
 ---
 
 ## 📄 License
 
-MIT License — see `LICENSE` for details.
+Nexus is released under the **MIT License**.
+
+See [`LICENSE`](LICENSE) for details.
 
 ---
 
-## 🗺️ Roadmap (Post v1.1)
+<div align="center">
 
-| Area | Planned |
-|------|---------|
-| **RAG / Vector Search** | ✅ **Done** — chunking, embeddings, hybrid retrieval for large documents |
-| **Ollama Auto-Start** | Actually spawn `ollama serve` on demand |
-| **Docker / Compose** | ✅ **Done** — Single-container Dockerfile.all + docker-compose.all.yml (backend + frontend), multi-container docker-compose.yml with optional Redis & frontend profiles |
-| **Multi-User Workspaces** | Teams, shared chats, role-based access |
-| **Function Calling / Tools** | Model tool use with approval UI |
-| **Vision Models** | Image upload + analysis |
-| **MCP (Model Context Protocol)** | Standard tool integration |
-| **Desktop Apps** | Tauri/Electron packaging |
-| **Plugin Marketplace** | Community skills & providers |
+### Nexus
 
+**One interface. Every model. Your workflow.**
 
----
+Built with ❤️ for the open-source AI community.
 
-**Built with ❤️ for the open-source AI community.**
+⭐ **If you find Nexus useful, consider giving the project a star.**
+
+</div>
