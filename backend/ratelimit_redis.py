@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import time
 from collections import defaultdict
+from contextlib import suppress
 from dataclasses import dataclass
 
 from config import settings
@@ -57,6 +58,10 @@ class MemoryStore:
             return False, headers
         bucket.append(now)
         return True, headers
+
+    async def reset_limit(self, key: str) -> None:
+        """Clear all recorded hits for *key* (e.g. on successful login)."""
+        self._buckets.pop(key, None)
 
     async def close(self) -> None:
         """No-op for in-memory store."""
@@ -135,6 +140,16 @@ class RedisStore:
         if not hasattr(self, "_memory"):
             self._memory = MemoryStore()
         return self._memory
+
+    async def reset_limit(self, key: str) -> None:
+        """Clear all recorded hits for *key* in Redis and the fallback."""
+        # Clear the in-memory mirror first so a Redis outage never revives
+        # stale counts from the fallback.
+        if hasattr(self, "_memory"):
+            self._memory._buckets.pop(key, None)
+        if self._client is not None:
+            with suppress(Exception):  # Redis is already degraded; fallback cleared.
+                await self._client.delete(key)
 
     async def close(self) -> None:
         if self._closed:

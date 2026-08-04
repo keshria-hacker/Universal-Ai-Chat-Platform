@@ -219,8 +219,8 @@ def index_document(file_id: str, text: str, filename: str) -> int:
             "Indexed %d chunks for file %s (%s)", len(chunks), file_id, filename
         )
         return len(chunks)
-    except Exception as exc:
-        logger.warning("index_document(%s) failed: %s", file_id, exc)
+    except Exception:
+        logger.exception("index_document(%s) failed", file_id)
         return -1
 
 
@@ -283,8 +283,11 @@ def retrieve_relevant_chunks(
             "Retrieved %d chunks for query (top_k=%d)", len(chunks), top_k
         )
         return chunks
-    except Exception as exc:
-        logger.warning("retrieve_relevant_chunks failed: %s", exc)
+    except Exception:
+        logger.exception(
+            "retrieve_relevant_chunks failed (query=%r, file_ids=%r)",
+            query, file_ids,
+        )
         return []
 
 
@@ -298,8 +301,8 @@ def delete_document_chunks(file_id: str) -> bool:
         _get_collection().delete(where={"file_id": file_id})
         logger.info("Deleted chunks for file %s", file_id)
         return True
-    except Exception as exc:
-        logger.warning("delete_document_chunks(%s) failed: %s", file_id, exc)
+    except Exception:
+        logger.exception("delete_document_chunks(%s) failed", file_id)
         return False
 
 
