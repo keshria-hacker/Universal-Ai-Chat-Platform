@@ -10,11 +10,11 @@ import hmac
 import secrets
 from datetime import UTC, datetime, timedelta
 
-from config import settings
 from database import get_db
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response, status
 from loguru import logger
 from models import AuthSession, PasswordResetToken, User
+from ratelimit_redis import get_rate_limit_store
 from schemas import (
     AuthCredentialsIn,
     AuthStatusOut,
@@ -26,8 +26,16 @@ from schemas import (
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from config import settings
+
 router = APIRouter(prefix="/auth", tags=["authentication"])
 SESSION_LIFETIME = timedelta(days=30)
+
+# Brute-force lockout: after MAX_LOGIN_ATTEMPTS consecutive failed logins
+# the username is blocked for LOGIN_LOCKOUT_SECONDS (sliding window). A
+# successful login resets the counter, so valid users never lock out.
+MAX_LOGIN_ATTEMPTS = 5
+LOGIN_LOCKOUT_SECONDS = 900
 
 # Cookie name for HTTP-only session token
 AUTH_COOKIE_NAME = "nexus_session"
@@ -215,10 +223,31 @@ async def register(credentials: AuthCredentialsIn, response: Response, db: Async
 
 @router.post("/login", response_model=AuthTokenOut)
 async def login(credentials: AuthCredentialsIn, response: Response, db: AsyncSession = Depends(get_db)):
+    # Brute-force lockout: a username locked out by too many failed logins
+    # is rejected before any database work happens.
+    store = await get_rate_limit_store()
+    fail_key = f"login_fail:{credentials.username.strip()}"
+    allowed, _ = await store.check_limit(fail_key, MAX_LOGIN_ATTEMPTS, LOGIN_LOCKOUT_SECONDS)
+    if not allowed:
+        logger.warning(
+            "Login lockout for user '{username}' after {max_attempts} failed attempts; "
+            "try again in {seconds}s",
+            username=credentials.username,
+            max_attempts=MAX_LOGIN_ATTEMPTS,
+            seconds=LOGIN_LOCKOUT_SECONDS,
+        )
+        raise HTTPException(
+            status_code=429,
+            detail="Too many failed login attempts. Please try again later.",
+        )
+
     await _clean_expired_sessions(db)
     user = await db.scalar(select(User).where(User.username == credentials.username.strip()))
     if user is None or not hmac.compare_digest(user.password_hash, _hash_password(credentials.password, user.password_salt)):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid username or password")
+
+    # A correct password clears the failure counter so valid users are never locked out.
+    await store.reset_limit(fail_key)
     return await _create_session(user, db, response)
 
 
