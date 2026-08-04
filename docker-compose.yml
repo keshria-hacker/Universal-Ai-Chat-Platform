@@ -1,0 +1,92 @@
+# =============================================================================
+# docker-compose.yml — UniversalAI Backend + optional Redis
+#
+# Quick start (backend only, no Redis):
+#   docker compose up
+#
+# With Redis for distributed rate limiting:
+#   docker compose --profile redis up
+#
+# Rebuild after code changes:
+#   docker compose build
+#   docker compose up
+# =============================================================================
+
+services:
+
+  # ── Backend ───────────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: nexus-backend:latest
+    container_name: nexus-backend
+    ports:
+      - "8001:8001"
+    env_file:
+      - .env
+    environment:
+      # Point Ollama at the host machine when running alongside a local
+      # Ollama instance — Docker Desktop (Windows/Mac) exposes the host
+      # via host.docker.internal, while Linux can use the gateway IP.
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+    volumes:
+      # Persist data across container restarts.
+      - nexus_history:/app/history
+      - nexus_uploads:/app/uploads
+      - nexus_chromadb:/app/.chromadb
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    networks:
+      - nexus_net
+
+  # ── Frontend (optional — dev server) ─────────────────────────────────────
+  # Serves the static frontend files.  The default API_BASE in the JS
+  # points to http://127.0.0.1:8001/api (configurable via localStorage),
+  # which reaches the host-mapped backend port — no reverse proxy needed
+  # for local development.
+  frontend:
+    image: python:3.13-slim
+    container_name: nexus-frontend
+    ports:
+      - "5500:5500"
+    volumes:
+      - ./frontend:/app/frontend:ro
+    working_dir: /app/frontend
+    entrypoint: ["python", "-m", "http.server", "5500"]
+    restart: unless-stopped
+    profiles:
+      - frontend          # opt-in: docker compose --profile frontend up
+    networks:
+      - nexus_net
+
+  # ── Redis (optional — rate limiting) ─────────────────────────────────────
+  # Start with:  docker compose --profile redis up
+  # Set REDIS_URL=redis://redis:6379/0 in .env to enable.
+  redis:
+    image: redis:7-alpine
+    container_name: nexus-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - nexus_redis:/data
+    restart: unless-stopped
+    profiles:
+      - redis
+    networks:
+      - nexus_net
+
+volumes:
+  nexus_history:
+  nexus_uploads:
+  nexus_chromadb:
+  nexus_redis:
+
+networks:
+  nexus_net:
+    driver: bridge

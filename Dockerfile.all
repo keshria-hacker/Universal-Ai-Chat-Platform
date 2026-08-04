@@ -1,0 +1,62 @@
+# =============================================================================
+# Dockerfile.all — UniversalAI Backend + Frontend in ONE container
+#
+# Runs both uvicorn (backend :8001) and python http.server (frontend :5500)
+# via supervisord. Build with: docker build -f Dockerfile.all -t nexus-all .
+# =============================================================================
+
+# ── Build stage ─────────────────────────────────────────────────────────────
+FROM python:3.13-slim AS builder
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc build-essential libffi-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /build
+# Single source of truth: the dependency list lives at the repo root.
+COPY requirements.txt .
+
+# Install deps into /root/.local
+RUN pip install --no-cache-dir --user -r requirements.txt
+
+
+# ── Runtime stage ───────────────────────────────────────────────────────────
+FROM python:3.13-slim
+
+# Runtime deps: OCR + PDF rendering + supervisord
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    tesseract-ocr poppler-utils libmagic1 supervisor \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy installed Python packages from builder
+COPY --from=builder /root/.local /usr/local
+ENV PYTHONUNBUFFERED=1 \
+    PORT=8001
+
+# Create non-root user
+RUN groupadd --system nexus && \
+    useradd --system --gid nexus --create-home --shell /bin/bash nexus
+
+WORKDIR /app
+
+# Copy backend code
+COPY backend/ /app/backend/
+
+# Copy frontend code
+COPY frontend/ /app/frontend/
+
+# Create data directories
+RUN mkdir -p /app/uploads /app/history /app/logs /app/.chromadb && \
+    chown -R nexus:nexus /app
+
+# Copy supervisord config
+COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+
+USER nexus
+
+EXPOSE 8001 5500
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health')"
+
+CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
