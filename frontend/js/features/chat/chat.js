@@ -193,7 +193,57 @@ export function buildMessageNode(msg) {
       <div class="msg-body">
         <div class="msg-meta"><span class="msg-author">You</span><span class="msg-time">${formatTime(msg.created_at)}</span></div>
         <div class="msg-content">${escapeHtml(msg.content)}</div>
+        <div class="msg-edit-btn" title="Edit message"><i class="fa-regular fa-pen-to-square"></i> Edit</div>
       </div>`;
+
+    var editBtn = node.querySelector(".msg-edit-btn");
+    if (editBtn) {
+      editBtn.addEventListener("click", function() {
+        var contentEl = node.querySelector(".msg-content");
+        if (!contentEl) return;
+        var origText = msg.content;
+        var ta = document.createElement("textarea");
+        ta.className = "msg-edit-textarea";
+        ta.value = origText;
+        contentEl.replaceWith(ta);
+        editBtn.style.display = "none";
+
+        var adiv = document.createElement("div");
+        adiv.className = "msg-edit-actions";
+        adiv.innerHTML = '<button class="msg-edit-save">Save</button><button class="msg-edit-cancel">Cancel</button>';
+        ta.after(adiv);
+        ta.focus();
+
+        function doSave() {
+          var nt = ta.value.trim();
+          if (nt && nt !== origText) {
+            msg.content = nt;
+            var allMsgs = getMessages();
+            var idx = allMsgs.indexOf(msg);
+            if (idx !== -1) {
+              setMessages(allMsgs.slice(0, idx + 1));
+              renderMessages();
+              setLastUserText(nt);
+              setTimeout(function() { runGeneration({ content: nt, fileIds: [], regenerate: true }); }, 100);
+            }
+          } else { doCancel(); }
+        }
+        function doCancel() {
+          var rst = document.createElement("div");
+          rst.className = "msg-content";
+          rst.innerHTML = escapeHtml(origText);
+          ta.replaceWith(rst);
+          editBtn.style.display = "";
+          adiv.remove();
+        }
+        adiv.querySelector(".msg-edit-save").addEventListener("click", doSave);
+        adiv.querySelector(".msg-edit-cancel").addEventListener("click", doCancel);
+        ta.addEventListener("keydown", function(e) {
+          if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); doSave(); }
+          if (e.key === "Escape") { e.preventDefault(); doCancel(); }
+        });
+      });
+    }
     return node;
   }
 
@@ -215,7 +265,7 @@ export function buildMessageNode(msg) {
         ${msg.response_time != null ? `<span class="msg-response-time">${msg.response_time.toFixed(1)}s</span>` : ''}
       </div>
       <div class="msg-content">${msg.content ? renderMarkdown(msg.content) : ''}</div>
-      <div class="msg-actions always-visible">
+      <div class="msg-actions">
         <button class="msg-action-btn copy-msg-btn"><i class="fa-regular fa-copy"></i> Copy</button>
         <button class="msg-action-btn regenerate-btn"><i class="fa-solid fa-arrow-rotate-right"></i> Regenerate</button>
         <button class="msg-action-btn"><i class="fa-regular fa-thumbs-up"></i></button>
@@ -486,8 +536,24 @@ export async function runGeneration({ content, fileIds, regenerate }) {
   elements.messages?.appendChild(typingNode);
   scrollToBottom(true);
 
+  var _thinkStartTime = Date.now();
+  var _thinkTimer = null;
+  function startElapsedTimer() {
+    if (_thinkTimer) clearInterval(_thinkTimer);
+    _thinkTimer = setInterval(function() {
+      var elapsed = Math.floor((Date.now() - _thinkStartTime) / 1000);
+      var phaseEl = typingNode.querySelector(".msg-phase-status");
+      if (phaseEl) {
+        var es = phaseEl.querySelector(".msg-thinking-elapsed");
+        if (!es) { es = document.createElement("span"); es.className = "msg-thinking-elapsed"; phaseEl.appendChild(es); }
+        es.textContent = elapsed + "s";
+      }
+    }, 1000);
+  }
+
   // PHASE: Connecting
   setThinkingPhase(typingNode, 'connecting');
+  startElapsedTimer();
 
   const controller = new AbortController();
   setAbortController(controller);
@@ -644,6 +710,7 @@ export async function runGeneration({ content, fileIds, regenerate }) {
 
   setIsGenerating(false);
   setAbortController(null);
+  if (_thinkTimer) { clearInterval(_thinkTimer); _thinkTimer = null; }
 
   // Enforce minimum stop-button visibility
   const elapsed = Date.now() - genStartedAt;
@@ -776,4 +843,33 @@ export function initChatEvents() {
     });
   });
 
-}
+
+  // Token counter - live estimate
+  var tokenCountEl = document.getElementById('tokenCounter');
+  var msgInput = document.getElementById('messageInput');
+  function updateTokenEstimate() {
+    if (!tokenCountEl || !msgInput) return;
+    var text = msgInput.value || '';
+    var tokens = Math.ceil(text.length / 4);
+    var maxTokens = 8192;
+    var pct = tokens / maxTokens;
+    tokenCountEl.textContent = tokens.toLocaleString() + ' / ' + maxTokens.toLocaleString() + ' tokens';
+    tokenCountEl.className = 'token-counter';
+    if (pct > 0.9) tokenCountEl.classList.add('danger');
+    else if (pct > 0.7) tokenCountEl.classList.add('warning');
+  }
+  msgInput?.addEventListener('input', updateTokenEstimate);
+  updateTokenEstimate();
+
+  // Keyboard shortcut hint toggle
+  var hintEl = document.getElementById('composerHint');
+  var hintToggle = document.getElementById('hintToggle');
+  if (hintEl && hintToggle) {
+    var hintHidden = localStorage.getItem('nexus-hint-hidden');
+    if (hintHidden === 'true') hintEl.style.display = 'none';
+    hintToggle.addEventListener('click', function() {
+      var isHidden = hintEl.style.display === 'none';
+      hintEl.style.display = isHidden ? '' : 'none';
+      localStorage.setItem('nexus-hint-hidden', isHidden ? 'false' : 'true');
+    });
+  }}

@@ -124,6 +124,26 @@ function getProviderInfo(providerId) {
 /**
  * Render model dropdown list.
  */
+
+// Determine speed class for a model (placeholder logic)
+function getModelSpeedClass(model) {
+  // Simple heuristic: smaller models faster, larger slower
+  // Could be enhanced with actual benchmark data
+  const name = (model.name || "").toLowerCase();
+  const ctx = model.context_window || model.max_tokens || 0;
+  if (name.includes("haiku") || name.includes("mini") || name.includes("3.5") || ctx <= 8192) return "fast";
+  if (name.includes("opus") || name.includes("4o") || name.includes("sonnet") || ctx > 32768) return "slow";
+  return "medium";
+}
+
+// Format context window nicely
+function formatContextSize(model) {
+  const ctx = model.context_window || model.max_tokens || 0;
+  if (ctx >= 1000000) return Math.round(ctx/1000000) + "M";
+  if (ctx >= 1000) return Math.round(ctx/1000) + "k";
+  return ctx.toString();
+}
+
 export function renderModelList(filter = '') {
   const q = filter.trim().toLowerCase();
   const list = elements.modelList;
@@ -168,12 +188,16 @@ export function renderModelList(filter = '') {
       opt.className = 'model-option' + (m.id === getSelectedModel()?.id ? ' selected' : '');
       opt.setAttribute('role', 'option');
       opt.setAttribute('aria-selected', String(m.id === getSelectedModel()?.id));
+      var speedClass = getModelSpeedClass(m);
+      var ctxStr = formatContextSize(m);
       opt.innerHTML = `
         <span class="provider-dot" style="--dot-color:${info.color}"></span>
         <span class="model-option-meta">
           <span class="model-option-name">${escapeHtml(m.name)}</span>
           <small>${escapeHtml(info.label)}${m.litellm_id ? ` · <code>${escapeHtml(m.litellm_id)}</code>` : ''}</small>
         </span>
+        <span class="model-option-context">${ctxStr}</span>
+        <span class="model-option-speed ${speedClass}"></span>
         <span class="status-dot ${info.state}" title="${info.state === 'online' ? 'Connected' : info.state === 'local' ? 'Local runtime' : 'Not linked'}"></span>
       `;
       opt.addEventListener('click', () => { selectModel(m); closeModelDropdown(); });
