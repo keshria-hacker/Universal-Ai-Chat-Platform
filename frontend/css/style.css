@@ -1536,3 +1536,218 @@ body[data-animations="off"] *{animation:none !important; transition:none !import
 }
 .shortcuts-table kbd + kbd{margin-left:4px;}
 .shortcuts-note{margin-top:16px;font-size:12px;color:var(--text-tertiary);text-align:center;}
+
+
+/* ====================================================
+   NEXUS 2.0 UX Improvements — appended
+   ==================================================== */
+
+/* ----- Message Hover Actions ----- */
+.msg.assistant .msg-actions {
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+.msg.assistant:hover .msg-actions,
+.msg.assistant .msg-actions:focus-within {
+  opacity: 1;
+}
+
+/* User message edit button on hover */
+.msg.user .msg-edit-btn {
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+.msg.user:hover .msg-edit-btn {
+  opacity: 1;
+}
+.msg.user .msg-edit-btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 4px 10px; border-radius: 6px; font-size: 12px;
+  background: var(--bg-elevated-2); border: 1px solid var(--border);
+  color: var(--text-secondary); cursor: pointer;
+  transition: background 150ms ease, color 150ms ease, opacity 150ms ease;
+}
+.msg.user .msg-edit-btn:hover {
+  background: var(--bg-elevated); color: var(--text-primary);
+}
+
+/* User message edit textarea */
+.msg.user .msg-edit-textarea {
+  width: 100%; resize: none;
+  background: var(--bg-elevated); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 10px 12px;
+  font-size: 14px; color: var(--text-primary); font-family: var(--font-body);
+  line-height: 1.5; min-height: 80px; box-sizing: border-box;
+  margin-top: 6px;
+}
+.msg.user .msg-edit-textarea:focus {
+  outline: none; border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.12);
+}
+.msg.user .msg-edit-actions {
+  display: flex; gap: 6px; margin-top: 8px;
+}
+.msg.user .msg-edit-actions button {
+  padding: 6px 14px; border-radius: 6px; font-size: 12.5px; font-weight: 500;
+  cursor: pointer; transition: background 150ms ease;
+}
+.msg.user .msg-edit-save {
+  background: var(--accent); color: #fff; border: none;
+}
+.msg.user .msg-edit-save:hover { filter: brightness(1.1); }
+.msg.user .msg-edit-cancel {
+  background: transparent; border: 1px solid var(--border); color: var(--text-secondary);
+}
+.msg.user .msg-edit-cancel:hover { background: var(--bg-elevated-2); color: var(--text-primary); }
+
+/* Timestamps: hidden by default, visible on message hover */
+.msg .msg-time {
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+.msg:hover .msg-time {
+  opacity: 0.85;
+}
+
+/* ---------- Enhanced Table Styling ---------- */
+.msg-content .table-scroll {
+  overflow-x: auto;
+  margin: 12px 0;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+}
+.msg-content table {
+  width: 100%; border-collapse: collapse; font-size: 13px; line-height: 1.5;
+  min-width: 480px;
+}
+.msg-content thead { background: var(--bg-elevated-2); }
+.msg-content th {
+  text-align: left; padding: 8px 12px; font-weight: 600; font-size: 12px;
+  color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.03em;
+  border-bottom: 2px solid var(--border);
+}
+.msg-content td { padding: 8px 12px; border-bottom: 1px solid var(--border-soft); }
+.msg-content tbody tr:nth-child(even) { background: rgba(var(--accent-rgb), 0.03); }
+.msg-content tbody tr:hover { background: rgba(var(--accent-rgb), 0.06); }
+.msg-content tbody tr:last-child td { border-bottom: none; }
+
+/* Code block enhancements - horizontal scroll and better header */
+.code-block { margin: 12px 0; border-radius: var(--radius-sm); overflow: hidden; border: 1px solid var(--border); }
+.code-block-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 6px 12px; background: var(--code-block-header-bg);
+  border-bottom: 1px solid var(--code-block-header-border);
+  font-size: 11px; font-weight: 600; color: var(--text-tertiary);
+  text-transform: uppercase; letter-spacing: 0.04em;
+}
+.code-block pre { margin: 0; overflow-x: auto; }
+.code-block pre code { display: block; padding: 14px 16px; font-size: 13px; line-height: 1.5; }
+.copy-code-btn {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: transparent; border: 1px solid var(--border); border-radius: 5px;
+  padding: 3px 8px; font-size: 10.5px; font-weight: 500; color: var(--text-tertiary);
+  cursor: pointer; transition: background 150ms ease, color 150ms ease, border-color 150ms ease;
+}
+.copy-code-btn:hover { background: var(--code-block-btn-hover-bg); color: var(--text-primary); border-color: var(--text-tertiary); }
+.copy-code-btn.copied { color: var(--success); border-color: var(--success); }
+
+/* ---------- Token Counter ---------- */
+.token-counter {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 10.5px; font-weight: 500; color: var(--text-tertiary); white-space: nowrap;
+  padding: 3px 8px; border-radius: 999px; background: var(--bg-elevated);
+  border: 1px solid var(--border-soft); margin-left: auto; cursor: default;
+  transition: color 150ms ease, border-color 150ms ease, background 150ms ease;
+}
+.token-counter.warning { color: var(--warning); border-color: rgba(245, 166, 35, 0.35); background: rgba(245, 166, 35, 0.08); }
+.token-counter.danger { color: var(--danger); border-color: rgba(242, 109, 109, 0.35); background: rgba(242, 109, 109, 0.08); }
+
+/* ---------- Composer hint toggle ---------- */
+.composer-hint { font-size: 11px; color: var(--text-tertiary); margin-left: auto; white-space: nowrap; }
+.composer-hint-toggle {
+  background: transparent; border: none; color: var(--text-tertiary);
+  font-size: 13px; cursor: pointer; padding: 2px 4px; border-radius: 4px;
+  transition: color 150ms ease; margin-left: 6px;
+}
+.composer-hint-toggle:hover { color: var(--text-primary); }
+
+/* ---------- Sidebar: Pin, Menu, Rename ---------- */
+.chat-item .chat-item-pin {
+  font-size: 10px; color: var(--text-tertiary); flex: 0 0 auto;
+  opacity: 0; transition: opacity 150ms ease, color 150ms ease;
+}
+.chat-item:hover .chat-item-pin { opacity: 1; }
+.chat-item.pinned { background: rgba(var(--accent-rgb), 0.06); }
+.chat-item.pinned .chat-item-pin { opacity: 1; color: var(--warning); }
+.chat-item.pinned .chat-icon { color: var(--warning); }
+
+.chat-item-menu-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; border-radius: 4px; border: none;
+  background: transparent; color: var(--text-tertiary); font-size: 12px;
+  flex: 0 0 auto; opacity: 0; cursor: pointer;
+  transition: background 150ms ease, color 150ms ease, opacity 150ms ease;
+}
+.chat-item:hover .chat-item-menu-btn { opacity: 1; }
+.chat-item-menu-btn:hover { background: var(--bg-elevated-2); color: var(--text-primary); }
+
+/* Sidebar context menu */
+.chat-context-menu {
+  position: fixed; z-index: 100; min-width: 160px;
+  background: var(--bg-elevated-2); border: 1px solid var(--border);
+  border-radius: var(--radius-md); padding: 4px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4); display: none;
+}
+.chat-context-menu.show { display: block; }
+.chat-context-menu button {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  padding: 7px 12px; border: none; background: transparent;
+  color: var(--text-primary); font-size: 12.5px; cursor: pointer;
+  border-radius: 6px; transition: background 150ms ease; text-align: left;
+}
+.chat-context-menu button:hover { background: var(--bg-elevated); }
+.chat-context-menu button i { width: 16px; text-align: center; font-size: 12px; color: var(--text-tertiary); }
+.chat-context-menu .ctx-menu-danger { color: var(--danger); }
+.chat-context-menu .ctx-menu-danger i { color: var(--danger); }
+.chat-context-menu .ctx-menu-divider { height: 1px; background: var(--border); margin: 4px 0; }
+
+/* Inline rename input */
+.chat-item .chat-rename-input {
+  flex: 1; min-width: 0;
+  background: var(--bg-elevated); border: 1px solid var(--accent);
+  border-radius: 4px; padding: 2px 8px; font-size: 12.5px; height: 24px;
+  color: var(--text-primary); outline: none;
+}
+
+/* ---------- Model Picker: Context size & speed ---------- */
+.model-option .model-option-context {
+  font-size: 10px; color: var(--text-tertiary); margin-left: auto; white-space: nowrap;
+  background: var(--bg-elevated-2); padding: 1px 6px; border-radius: 4px;
+  font-weight: 500; margin-right: 6px;
+}
+.model-option .model-option-speed {
+  display: inline-block; width: 6px; height: 6px; border-radius: 50%; flex: 0 0 auto;
+}
+.model-option-speed.fast { background: var(--success); box-shadow: 0 0 4px rgba(74, 222, 128, 0.4); }
+.model-option-speed.medium { background: var(--warning); box-shadow: 0 0 4px rgba(245, 166, 35, 0.4); }
+.model-option-speed.slow { background: var(--danger); box-shadow: 0 0 4px rgba(242, 109, 109, 0.4); }
+
+/* ---------- Thinking Indicator ----- */
+.msg-thinking-elapsed { font-size: 10px; color: var(--text-tertiary); font-weight: 500; margin-left: 4px; }
+
+/* ---------- Stop button refinement ---------- */
+#stopBtn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 36px; height: 36px; border-radius: 50%;
+  background: var(--danger); border: none; color: #fff; font-size: 16px;
+  cursor: pointer; transition: background 150ms ease, transform 150ms ease;
+}
+#stopBtn:hover { background: #ff4444; transform: scale(1.05); }
+#stopBtn:active { transform: scale(0.92); }
+
+/* ---------- Textarea auto-grow max-height ---------- */
+.composer-textarea { max-height: 140px; overflow-y: auto; }
+
+/* ---------- Sidebar collapsed context menu hide ---------- */
+.sidebar.collapsed .chat-item-menu-btn,
+.sidebar.collapsed .chat-item-pin { display: none; }
