@@ -96,6 +96,12 @@ function updateSendButtonEnabled() {
   // Accessibility: reflect disabled state via ARIA and visual class
   sendBtn.setAttribute('aria-disabled', String(sendBtn.disabled));
   sendBtn.classList.toggle('disabled', sendBtn.disabled);
+  // Ensure focusability for keyboard users even when disabled
+  if (sendBtn.disabled) {
+    sendBtn.setAttribute('tabindex', '-1');
+  } else {
+    sendBtn.setAttribute('tabindex', '0');
+  }
 }
 
 /**

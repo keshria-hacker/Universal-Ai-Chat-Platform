@@ -262,6 +262,12 @@ kbd{
 
 /* Icon transitions for toggle buttons */
 #collapseSidebar i, .expand-btn i { transition: transform var(--dur-med) var(--ease); }
+/* Rotated state for expand/collapse icons */
+.expand-btn.rotated i, #collapseSidebar.rotated i { transform: rotate(180deg); }
+
+/* Send button disabled visual state */
+.send-btn.disabled { opacity: .55; cursor: not-allowed; pointer-events: none; }
+.send-btn:focus-visible { outline: 2px solid rgba(var(--accent-rgb),.9); outline-offset: 0; }
 .chat-item .chat-item-menu{opacity:0; margin-left:auto; flex:0 0 auto;}
 .chat-item:hover .chat-item-menu{opacity:1;}
 .no-results{padding:20px 10px; text-align:center; color:var(--text-tertiary); font-size:13px;}

@@ -57,10 +57,14 @@ export function toggleSidebarCollapse() {
   setSidebarCollapsed(next);
   elements.sidebar?.classList.toggle('collapsed', next);
   elements.expandSidebar?.classList.toggle('hidden', !next);
+  // Update ARIA and titles
   elements.collapseSidebar?.setAttribute('aria-expanded', String(!next));
   elements.collapseSidebar?.setAttribute('aria-label', next ? 'Expand navigation rail' : 'Collapse sidebar');
   elements.collapseSidebar?.setAttribute('title', next ? 'Expand navigation rail' : 'Collapse sidebar');
   elements.expandSidebar?.setAttribute('aria-expanded', String(next));
+  // Icon rotation class for a smoother visual cue
+  elements.expandSidebar?.classList.toggle('rotated', next);
+  elements.collapseSidebar?.classList.toggle('rotated', !next);
 }
 
 /**
