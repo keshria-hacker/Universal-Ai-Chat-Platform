@@ -642,7 +642,7 @@ kbd{
 .msg-action-btn.copied{color:var(--success);}
 
 /* Typing indicator */
-.typing-indicator{display:flex; align-items:center; gap:4px; padding:6px 0;}
+.typing-indicator{display:flex; align-items:center; gap:4px; padding:10px 0 8px; min-height:18px;}
 .typing-indicator span{
   width:6px; height:6px; border-radius:50%; background:var(--text-tertiary);
   animation:typingBounce 1.2s var(--ease) infinite;
@@ -654,6 +654,11 @@ kbd{
 /* Streaming cursor */
 .stream-cursor{display:inline-block; width:2px; height:1.1em; background:var(--accent); margin-left:1px; vertical-align:text-bottom; animation:blink .8s step-end infinite; border-radius:1px;}
 @keyframes blink{50%{opacity:0;}}
+.msg-streaming .msg-body{
+  opacity:1; border-radius:var(--radius-xl); background:rgba(var(--accent-rgb),.04);
+  border:1px solid rgba(var(--accent-rgb),.1); transition:background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+.msg-streaming .msg-content{min-height:24px; padding-top:6px;}
 
 /* Phase status indicator — shows Connecting / Thinking / Writing */
 .msg-phase-status{

@@ -452,12 +452,14 @@ export async function runGeneration({ content, fileIds, regenerate }) {
 
   // Initial assistant message node with CONNECTING phase
   const typingNode = document.createElement('div');
-  typingNode.className = 'msg assistant';
+  typingNode.className = 'msg assistant msg-streaming';
   typingNode.style.setProperty('--provider-color', info.color);
+  typingNode.setAttribute('aria-busy', 'true');
   typingNode.innerHTML = `
     <div class="msg-avatar" style="color:${info.color}"><i class="fa-solid fa-sparkles"></i></div>
     <div class="msg-body">
       <div class="msg-meta"><span class="msg-author">${escapeHtml(model.name)}</span><span class="msg-provider-tag" style="color:${info.color}">${escapeHtml(info.label)}</span></div>
+      <div class="typing-indicator"><span></span><span></span><span></span></div>
     </div>`;
   elements.messages?.appendChild(typingNode);
   scrollToBottom(true);
@@ -516,7 +518,11 @@ export async function runGeneration({ content, fileIds, regenerate }) {
         const metaEl = typingNode.querySelector('.msg-meta');
         if (metaEl) metaEl.insertAdjacentHTML('beforeend', `<span class="msg-time">${nowTime()}</span>`);
         const indicator = typingNode.querySelector('.typing-indicator');
-        if (indicator) indicator.outerHTML = '<div class="msg-content"><span class="stream-cursor"></span></div>';
+        if (indicator) {
+          indicator.outerHTML = '<div class="msg-content"><span class="stream-cursor"></span></div>';
+        } else {
+          typingNode.querySelector('.msg-body')?.insertAdjacentHTML('beforeend', '<div class="msg-content"><span class="stream-cursor"></span></div>');
+        }
       }
 
       // PHASE: Writing — first visible content token arrived
@@ -529,7 +535,7 @@ export async function runGeneration({ content, fileIds, regenerate }) {
       const contentEl = typingNode.querySelector('.msg-content');
       if (contentEl) {
         // Use streaming markdown renderer for visually stable incremental updates
-        contentEl.innerHTML = renderMarkdownStream(collected) + '<span class="stream-cursor"></span>';
+        contentEl.innerHTML = renderMarkdownStream(collected) + '<span class="stream-cursor" aria-hidden="true"></span>';
       }
       if (autoScrollEnabled) {
         scrollToBottomIfNearBottom();
