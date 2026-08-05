@@ -241,21 +241,56 @@ export function renderMessages() {
 /**
  * Scroll to bottom of chat.
  */
+const AUTO_SCROLL_THRESHOLD = 120;
+let autoScrollEnabled = true;
+let autoScrollScheduled = false;
+
 export function scrollToBottom(smooth = true) {
   const scrollEl = elements.chatScroll;
   if (!scrollEl) return;
   scrollEl.scrollTo({ top: scrollEl.scrollHeight, behavior: smooth ? 'smooth' : 'auto' });
+  setAutoScrollEnabled(true);
+}
+
+function isNearBottom(threshold = AUTO_SCROLL_THRESHOLD) {
+  const scrollEl = elements.chatScroll;
+  if (!scrollEl) return true;
+  const distance = scrollEl.scrollHeight - scrollEl.scrollTop - scrollEl.clientHeight;
+  return distance <= threshold;
+}
+
+function updateScrollBottomButton() {
+  const btn = elements.scrollBottomBtn;
+  if (!btn) return;
+  btn.classList.toggle('hidden', autoScrollEnabled || isNearBottom());
+}
+
+function setAutoScrollEnabled(enabled) {
+  autoScrollEnabled = enabled;
+  updateScrollBottomButton();
+}
+
+function scheduleAutoScroll() {
+  if (!autoScrollEnabled) return;
+  if (autoScrollScheduled) return;
+  autoScrollScheduled = true;
+  requestAnimationFrame(() => {
+    autoScrollScheduled = false;
+    if (!autoScrollEnabled) return;
+    const scrollEl = elements.chatScroll;
+    if (!scrollEl) return;
+    scrollEl.scrollTo({ top: scrollEl.scrollHeight, behavior: 'smooth' });
+    updateScrollBottomButton();
+  });
 }
 
 /**
- * Scroll to bottom if near bottom.
+ * Scroll to bottom if the user is already near the bottom.
  */
 export function scrollToBottomIfNearBottom() {
-  const scrollEl = elements.chatScroll;
-  if (!scrollEl) return;
-
-  const dist = scrollEl.scrollHeight - scrollEl.scrollTop - scrollEl.clientHeight;
-  if (dist < 220) scrollToBottom(false);
+  if (isNearBottom()) {
+    scheduleAutoScroll();
+  }
 }
 
 /**
@@ -496,7 +531,9 @@ export async function runGeneration({ content, fileIds, regenerate }) {
         // Use streaming markdown renderer for visually stable incremental updates
         contentEl.innerHTML = renderMarkdownStream(collected) + '<span class="stream-cursor"></span>';
       }
-      scrollToBottomIfNearBottom();
+      if (autoScrollEnabled) {
+        scrollToBottomIfNearBottom();
+      }
     }
   } catch (err) {
     if (err.name === 'AbortError') {
@@ -656,6 +693,17 @@ export function initChatEvents() {
   });
   elements.attachBtn?.addEventListener('click', () => elements.fileInput?.click());
   elements.fileInput?.addEventListener('change', (e) => { handleFileSelection(e.target.files); e.target.value = ''; });
+
+  elements.chatScroll?.addEventListener('scroll', () => {
+    if (isNearBottom()) {
+      setAutoScrollEnabled(true);
+    } else {
+      setAutoScrollEnabled(false);
+    }
+  }, { passive: true });
+
+  elements.scrollBottomBtn?.addEventListener('click', () => scrollToBottom(true));
+  updateScrollBottomButton();
 
   elements.messageInput?.addEventListener('input', autoResizeTextarea);
   elements.messageInput?.addEventListener('keydown', (e) => {
