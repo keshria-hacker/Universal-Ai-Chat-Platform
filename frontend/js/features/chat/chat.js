@@ -87,6 +87,17 @@ function setSendButtonState(generating) {
   }
 }
 
+function updateSendButtonEnabled() {
+  const sendBtn = elements.sendBtn;
+  if (!sendBtn) return;
+  const hasText = elements.messageInput?.value.trim().length > 0;
+  const hasFiles = getAttachedFiles().length > 0;
+  sendBtn.disabled = !hasText && !hasFiles;
+  // Accessibility: reflect disabled state via ARIA and visual class
+  sendBtn.setAttribute('aria-disabled', String(sendBtn.disabled));
+  sendBtn.classList.toggle('disabled', sendBtn.disabled);
+}
+
 /**
  * Phase-aware response status helper.
  * Updates the assistant message node with the current response phase.
@@ -320,10 +331,12 @@ export function renderFileChips() {
       const updated = getAttachedFiles().filter((x) => x.localId !== f.localId);
       setAttachedFiles(updated);
       renderFileChips();
+      updateSendButtonEnabled();
     });
 
     container.appendChild(chip);
   });
+  updateSendButtonEnabled();
 }
 
 /**
@@ -361,10 +374,12 @@ export async function handleFileSelection(fileList) {
       );
       setAttachedFiles(newFiles);
       renderFileChips();
+      updateSendButtonEnabled();
     } catch (err) {
       const newFiles = getAttachedFiles().filter((f) => f.localId !== localId);
       setAttachedFiles(newFiles);
       renderFileChips();
+      updateSendButtonEnabled();
       showToast({ type: 'error', title: `Upload failed: ${file.name}`, message: err.message });
     }
   }
@@ -397,6 +412,7 @@ export function handleSend() {
 
   elements.messageInput.value = '';
   autoResizeTextarea();
+  updateSendButtonEnabled();
 
   const fileIds = files.map((f) => f.id).filter(Boolean);
   setAttachedFiles([]);
@@ -673,6 +689,7 @@ export async function startNewChat() {
   elements.welcomeScreen?.classList.remove('hidden');
   elements.messageInput.value = '';
   autoResizeTextarea();
+  updateSendButtonEnabled();
   elements.messageInput?.focus();
 }
 
@@ -710,15 +727,22 @@ export function initChatEvents() {
 
   elements.scrollBottomBtn?.addEventListener('click', () => scrollToBottom(true));
   updateScrollBottomButton();
+  updateSendButtonEnabled();
 
-  elements.messageInput?.addEventListener('input', autoResizeTextarea);
+  elements.messageInput?.addEventListener('input', (e) => {
+    autoResizeTextarea();
+    updateSendButtonEnabled();
+  });
   elements.messageInput?.addEventListener('keydown', (e) => {
-    // Ctrl/Cmd+Enter always sends
-    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); handleSend(); }
-    // Enter without Shift sends on desktop (> 900px)
-    else if (e.key === 'Enter' && !e.shiftKey && window.innerWidth > 900) { e.preventDefault(); handleSend(); }
-    // On mobile/tablet, Shift+Enter sends, plain Enter creates newlines
-    else if (e.key === 'Enter' && e.shiftKey && window.innerWidth <= 900) { e.preventDefault(); handleSend(); }
+    if (e.key !== 'Enter') return;
+    if (e.ctrlKey || e.metaKey) {
+      e.preventDefault();
+      handleSend();
+      return;
+    }
+    if (e.shiftKey) return;
+    e.preventDefault();
+    handleSend();
   });
 
   // Web search toggle

@@ -57,6 +57,10 @@ export function toggleSidebarCollapse() {
   setSidebarCollapsed(next);
   elements.sidebar?.classList.toggle('collapsed', next);
   elements.expandSidebar?.classList.toggle('hidden', !next);
+  elements.collapseSidebar?.setAttribute('aria-expanded', String(!next));
+  elements.collapseSidebar?.setAttribute('aria-label', next ? 'Expand navigation rail' : 'Collapse sidebar');
+  elements.collapseSidebar?.setAttribute('title', next ? 'Expand navigation rail' : 'Collapse sidebar');
+  elements.expandSidebar?.setAttribute('aria-expanded', String(next));
 }
 
 /**
@@ -99,20 +103,28 @@ export function renderChatHistory(filter = '') {
       const item = document.createElement('div');
       item.className = 'chat-item' + (chat.id === getActiveChatId() ? ' active' : '');
       item.dataset.chatId = chat.id;
+      item.setAttribute('role', 'button');
+      item.setAttribute('tabindex', '0');
+      item.setAttribute('title', chat.title);
+      item.setAttribute('aria-label', `Open chat: ${chat.title}`);
       item.innerHTML = `
         <i class="fa-regular fa-message chat-icon"></i>
         <span>${escapeHtml(chat.title)}</span>
         <button class="icon-btn chat-item-menu" title="Delete chat" aria-label="Delete chat"><i class="fa-solid fa-trash"></i></button>
       `;
-      item.addEventListener('click', (e) => {
+      const activateItem = (e) => {
+        if (e.type === 'keydown' && e.key !== 'Enter' && e.key !== ' ') return;
         if (e.target.closest('.chat-item-menu')) {
           e.stopPropagation();
           deleteChat(chat.id);
           return;
         }
+        e.preventDefault();
         openChat(chat.id);
         if (window.innerWidth <= 900) closeMobileSidebar();
-      });
+      };
+      item.addEventListener('click', activateItem);
+      item.addEventListener('keydown', activateItem);
       container.appendChild(item);
     });
   });
@@ -160,6 +172,7 @@ export async function openChat(chatId) {
     $('#errorState').querySelector('strong').textContent = 'Could not load this conversation.';
     $('#errorState').querySelector('p').textContent = err.message;
   }
+      elements.expandSidebar?.classList.toggle('hidden', !collapsed);
 }
 
 /**
@@ -196,6 +209,12 @@ export function initSidebar() {
   elements.mobileNewChat?.addEventListener('click', () => { closeProfilePopup(); startNewChat(); closeMobileSidebar(); });
   elements.collapseSidebar?.addEventListener('click', toggleSidebarCollapse);
   elements.expandSidebar?.addEventListener('click', toggleSidebarCollapse);
+  const collapsed = getSidebarCollapsed();
+  elements.sidebar?.classList.toggle('collapsed', collapsed);
+  elements.expandSidebar?.classList.toggle('hidden', !collapsed);
+  elements.collapseSidebar?.classList.toggle('hidden', collapsed);
+  elements.collapseSidebar?.setAttribute('aria-expanded', String(!collapsed));
+  elements.collapseSidebar?.setAttribute('aria-label', collapsed ? 'Expand navigation rail' : 'Collapse sidebar');
   elements.mobileSidebarToggle?.addEventListener('click', openMobileSidebar);
   elements.sidebarScrim?.addEventListener('click', closeMobileSidebar);
   elements.searchChats?.addEventListener('input', () => renderChatHistory(elements.searchChats.value));

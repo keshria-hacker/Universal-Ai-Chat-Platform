@@ -199,6 +199,11 @@ function initGlobalListeners() {
       e.preventDefault();
       elements.messageInput?.focus();
     }
+    // Ctrl/Cmd+B - Toggle sidebar collapse (quick rail show/hide)
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b') {
+      e.preventDefault();
+      toggleSidebarCollapse();
+    }
     // Ctrl+Shift+T - Toggle theme
     if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 't') {
       e.preventDefault();

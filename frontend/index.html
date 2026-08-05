@@ -69,7 +69,7 @@ if (location.protocol === 'file:') {
           <img src="assets/logo.svg" alt="Nexus logo" width="26" height="26">
           <span class="brand-name">Nexus</span>
         </div>
-        <button class="icon-btn ghost" id="collapseSidebar" title="Collapse sidebar" aria-label="Collapse sidebar">
+        <button class="icon-btn ghost" id="collapseSidebar" title="Collapse sidebar" aria-label="Collapse sidebar" aria-expanded="true">
           <i class="fa-solid fa-angles-left"></i>
         </button>
       </div>
@@ -277,14 +277,14 @@ if (location.protocol === 'file:') {
             id="messageInput"
             class="composer-textarea"
             aria-label="Message Nexus"
-            placeholder="Message Nexus… (Shift+Enter for a new line)"
+            placeholder="Message Nexus… Enter to send, Shift+Enter for a new line"
             rows="1"
           ></textarea>
 
-          <button class="send-btn" id="sendBtn" title="Send message" aria-label="Send message">
+          <button type="button" class="send-btn" id="sendBtn" title="Send message" aria-label="Send message">
             <i class="fa-solid fa-arrow-up" id="sendBtnIcon"></i>
           </button>
-          <button class="send-btn" id="stopBtn" title="Stop generating" aria-label="Stop generating" style="display:none">⏹</button>
+          <button type="button" class="send-btn" id="stopBtn" title="Stop generating" aria-label="Stop generating" style="display:none">⏹</button>
         </div>
 
         <div class="composer-controls">
