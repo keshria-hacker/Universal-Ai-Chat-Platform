@@ -76,16 +76,6 @@ export function nowTime() {
 }
 
 /**
- * Convert hex color to RGB object.
- */
-export function hexToRgb(hex) {
-  const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-  return m
-    ? { r: parseInt(m[1], 16), g: parseInt(m[2], 16), b: parseInt(m[3], 16) }
-    : { r: 108, g: 107, b: 245 };
-}
-
-/**
  * Bucket an ISO date string into a human-readable category.
  */
 export function bucketFor(isoDate) {

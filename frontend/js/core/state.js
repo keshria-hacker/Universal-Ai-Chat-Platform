@@ -5,7 +5,7 @@
  */
 
 import { DEFAULT_SETTINGS, CHAT_BUCKETS, PROVIDER_COLORS } from '../shared/constants.js';
-import { bucketFor, hexToRgb } from '../shared/utils.js';
+import { bucketFor } from '../shared/utils.js';
 
 /**
  * Create a reactive signal.
@@ -292,9 +292,6 @@ export function initAppState() {
     : settings.theme;
 
   root.setAttribute('data-theme', effectiveTheme);
-  root.style.setProperty('--accent', settings.accent);
-  const rgb = hexToRgb(settings.accent);
-  root.style.setProperty('--accent-rgb', `${rgb.r},${rgb.g},${rgb.b}`);
   document.body.setAttribute('data-font-size', settings.fontSize);
   document.body.setAttribute('data-chat-width', settings.chatWidth);
   document.body.setAttribute('data-animations', settings.animations ? 'on' : 'off');

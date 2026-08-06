@@ -286,26 +286,95 @@ export function renderMessages() {
 
   container.innerHTML = '';
   messages.forEach((m) => container.appendChild(buildMessageNode(m)));
+
+  // Full re-render resets auto-scroll to "following latest".
+  _followStream = true;
+  updateJumpBtn();
 }
 
 /**
- * Scroll to bottom of chat.
+ * Smart auto-scroll (§27): while the user is near the bottom the stream keeps
+ * following the latest content; the moment they scroll up, following stops.
+ * A "↓ Jump to latest" button reappears and resumes following on click.
+ *
+ * Hysteresis keeps the flag from flapping on trackpad/touch momentum: we stop
+ * following only once the user is clearly away (> THRESHOLD), and re-engage
+ * only when they return to the very bottom (< REENGAGE).
+ */
+let _followStream = true;             // whether new tokens auto-scroll the view
+let _suppressScrollHandler = false;   // guard for programmatic scrolls
+const AUTO_SCROLL_THRESHOLD_PX = 220; // dist beyond which following stops
+const AUTO_SCROLL_REENGAGE_PX = 60;   // dist within which following resumes
+const SMOOTH_SCROLL_SETTLE_MS = 400;  // how long a smooth scroll fires scroll events
+
+function nearBottomDist() {
+  const scrollEl = elements.chatScroll;
+  if (!scrollEl) return 0;
+  return scrollEl.scrollHeight - scrollEl.scrollTop - scrollEl.clientHeight;
+}
+
+/**
+ * Scroll to bottom of chat. Programmatic smooth scrolls fire many passive
+ * scroll events, so the follow-state listener is suspended for the duration
+ * of the animation — otherwise an in-flight smooth scroll could re-capture a
+ * user who is actively reading further up the history.
  */
 export function scrollToBottom(smooth = true) {
   const scrollEl = elements.chatScroll;
   if (!scrollEl) return;
-  scrollEl.scrollTo({ top: scrollEl.scrollHeight, behavior: smooth ? 'smooth' : 'auto' });
+  if (smooth) {
+    _suppressScrollHandler = true;
+    scrollEl.scrollTo({ top: scrollEl.scrollHeight, behavior: 'smooth' });
+    setTimeout(() => {
+      _suppressScrollHandler = false;
+      updateJumpBtn();
+    }, SMOOTH_SCROLL_SETTLE_MS);
+  } else {
+    scrollEl.scrollTo({ top: scrollEl.scrollHeight, behavior: 'auto' });
+  }
+}
+
+export function scrollToBottomIfNearBottom() {
+  if (!_followStream) return;         // user scrolled away — don't yank them down
+  if (nearBottomDist() < AUTO_SCROLL_THRESHOLD_PX) scrollToBottom(false);
 }
 
 /**
- * Scroll to bottom if near bottom.
+ * Show/hide the "↓ Jump to latest" button. Visible only when following has
+ * been suspended (user scrolled up) and there is actual overflow.
  */
-export function scrollToBottomIfNearBottom() {
-  const scrollEl = elements.chatScroll;
-  if (!scrollEl) return;
+function updateJumpBtn() {
+  const btn = elements.scrollBottomBtn;
+  if (!btn) return;
+  btn.classList.toggle('hidden', _followStream || nearBottomDist() < AUTO_SCROLL_THRESHOLD_PX);
+}
 
-  const dist = scrollEl.scrollHeight - scrollEl.scrollTop - scrollEl.clientHeight;
-  if (dist < 220) scrollToBottom(false);
+/**
+ * Passive scroll listener — tracks whether the user is still near the bottom.
+ * Uses hysteresis so momentum scrolls near the threshold don't flicker the flag.
+ */
+function onChatScroll() {
+  if (_suppressScrollHandler) return;
+  const dist = nearBottomDist();
+  if (_followStream) {
+    if (dist > AUTO_SCROLL_THRESHOLD_PX) _followStream = false;
+  } else if (dist < AUTO_SCROLL_REENGAGE_PX) {
+    _followStream = true;
+  }
+  updateJumpBtn();
+}
+
+/**
+ * Jump to the latest message and resume auto-following.
+ */
+function resumeFollow() {
+  _followStream = true;
+  _suppressScrollHandler = true;
+  scrollToBottom(false);
+  requestAnimationFrame(() => {
+    _suppressScrollHandler = false;
+    updateJumpBtn();
+  });
 }
 
 /**
@@ -416,6 +485,8 @@ export function handleSend() {
   const fileIds = files.map((f) => f.id).filter(Boolean);
   setAttachedFiles([]);
   renderFileChips();
+  _followStream = true; // a new send re-engages auto-following
+  updateJumpBtn();
   scrollToBottom(true);
 
   runGeneration({ content: userMsg.content, fileIds, regenerate: false });
@@ -492,24 +563,8 @@ export async function runGeneration({ content, fileIds, regenerate }) {
     }, 1000);
   }
 
-  var _thinkStartTime = Date.now();
-  var _thinkTimer = null;
-  function startElapsedTimer() {
-    if (_thinkTimer) clearInterval(_thinkTimer);
-    _thinkTimer = setInterval(function() {
-      var elapsed = Math.floor((Date.now() - _thinkStartTime) / 1000);
-      var phaseEl = typingNode.querySelector(".msg-phase-status");
-      if (phaseEl) {
-        var es = phaseEl.querySelector(".msg-thinking-elapsed");
-        if (!es) { es = document.createElement("span"); es.className = "msg-thinking-elapsed"; phaseEl.appendChild(es); }
-        es.textContent = elapsed + "s";
-      }
-    }, 1000);
-  }
-
   // PHASE: Connecting
   setThinkingPhase(typingNode, 'connecting');
-  startElapsedTimer();
   startElapsedTimer();
 
   const controller = new AbortController();
@@ -720,6 +775,8 @@ export async function startNewChat() {
   elements.messageInput.value = '';
   autoResizeTextarea();
   elements.messageInput?.focus();
+  _followStream = true;
+  updateJumpBtn();
 }
 
 /**
@@ -727,6 +784,12 @@ export async function startNewChat() {
  */
 export function initChatEvents() {
   initElements();
+
+  // Smart auto-scroll (§27): "↓ Jump to latest" resumes following the stream.
+  // Guard against re-init stacking duplicate passive listeners.
+  elements.scrollBottomBtn?.addEventListener('click', resumeFollow);
+  elements.chatScroll?.removeEventListener('scroll', onChatScroll);
+  elements.chatScroll?.addEventListener('scroll', onChatScroll, { passive: true });
 
   // Send button — always sends a message.
   elements.sendBtn?.addEventListener('click', () => {

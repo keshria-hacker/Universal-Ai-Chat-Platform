@@ -16,8 +16,8 @@
 <!-- Highlight.js theme (base — swapped dynamically via data-code-theme) -->
 <link id="hljs-theme" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.0/styles/github-dark.min.css">
 
-<!-- App styles (cache-busting v2 for code theme fix) -->
-<link rel="stylesheet" href="css/style.css?v=2">
+<!-- App styles (cache-busting v3 for Paper/Ink design system) -->
+<link rel="stylesheet" href="css/style.css?v=4">
 </head>
 <body data-code-theme="github-dark">
 
@@ -284,7 +284,7 @@ if (location.protocol === 'file:') {
           <button class="send-btn" id="sendBtn" title="Send message" aria-label="Send message">
             <i class="fa-solid fa-arrow-up" id="sendBtnIcon"></i>
           </button>
-          <button class="send-btn" id="stopBtn" title="Stop generating" aria-label="Stop generating" style="display:none">⏹</button>
+          <button class="send-btn" id="stopBtn" title="Stop generating" aria-label="Stop generating" style="display:none"><i class="fa-solid fa-stop"></i></button>
         </div>
 
         <div class="composer-controls">
@@ -387,21 +387,6 @@ if (location.protocol === 'file:') {
               <button class="theme-option active" data-theme="dark"><i class="fa-solid fa-moon"></i> Dark</button>
               <button class="theme-option" data-theme="light"><i class="fa-solid fa-sun"></i> Light</button>
               <button class="theme-option" data-theme="system"><i class="fa-solid fa-display"></i> System</button>
-            </div>
-          </div>
-
-          <div class="setting-row">
-            <div class="setting-label">
-              <span>Accent color</span>
-              <small>Used for actions, links and the active model</small>
-            </div>
-            <div class="accent-options" id="accentOptions">
-              <button class="accent-swatch active" data-accent="#6C6BF5" style="--sw:#6C6BF5" aria-label="Indigo"></button>
-              <button class="accent-swatch" data-accent="#4ADE80" style="--sw:#4ADE80" aria-label="Green"></button>
-              <button class="accent-swatch" data-accent="#F5A623" style="--sw:#F5A623" aria-label="Amber"></button>
-              <button class="accent-swatch" data-accent="#F26D6D" style="--sw:#F26D6D" aria-label="Red"></button>
-              <button class="accent-swatch" data-accent="#2F80ED" style="--sw:#2F80ED" aria-label="Blue"></button>
-              <button class="accent-swatch" data-accent="#D97757" style="--sw:#D97757" aria-label="Clay"></button>
             </div>
           </div>
 
@@ -643,6 +628,6 @@ if (location.protocol === 'file:') {
 </script>
 
 <!-- App (ES modules) — ?v=YYYYMMDD cache-bust prevents stale module graph -->
-<script type="module" src="js/app.js?v=20260801c"></script>
+<script type="module" src="js/app.js?v=20260801d"></script>
 </html>
 
