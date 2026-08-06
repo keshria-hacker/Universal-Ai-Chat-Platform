@@ -550,5 +550,59 @@ class ConstantsTests(unittest.TestCase):
         self.assertIsInstance(CHROMA_DB_DIR, Path)
 
 
+class RagFailureLoggingTests(unittest.TestCase):
+    """Failure paths must log a traceback via ``logger.exception``.
+
+    The graceful-degradation return contracts (-1 / [] / False) must be
+    preserved so callers can fall back to full-text stuffing — the audit
+    finding (C-004) is about *visibility*, not raising.
+    """
+
+    @patch("rag.logger")
+    @patch("rag._get_collection")
+    def test_index_document_logs_exception(self, mock_get_collection, mock_logger):
+        """index_document failure logs exception with file context, returns -1."""
+        mock_collection = MagicMock()
+        mock_collection.add.side_effect = Exception("ChromaDB error")
+        mock_get_collection.return_value = mock_collection
+
+        result = index_document("file1", "some text", "test.txt")
+
+        self.assertEqual(result, -1)  # contract preserved
+        mock_logger.exception.assert_called_once()
+        logged = " ".join(str(a) for a in mock_logger.exception.call_args.args)
+        self.assertIn("file1", logged)  # context logged
+
+    @patch("rag.logger")
+    @patch("rag._get_collection")
+    def test_retrieve_relevant_chunks_logs_exception(self, mock_get_collection, mock_logger):
+        """retrieve failure logs exception with query context, returns []."""
+        mock_collection = MagicMock()
+        mock_collection.query.side_effect = Exception("ChromaDB error")
+        mock_get_collection.return_value = mock_collection
+
+        result = retrieve_relevant_chunks("some query", ["file1"])
+
+        self.assertEqual(result, [])  # contract preserved
+        mock_logger.exception.assert_called_once()
+        logged = " ".join(str(a) for a in mock_logger.exception.call_args.args)
+        self.assertIn("some query", logged)  # context logged
+
+    @patch("rag.logger")
+    @patch("rag._get_collection")
+    def test_delete_document_chunks_logs_exception(self, mock_get_collection, mock_logger):
+        """delete failure logs exception with file context, returns False."""
+        mock_collection = MagicMock()
+        mock_collection.delete.side_effect = Exception("Delete error")
+        mock_get_collection.return_value = mock_collection
+
+        result = delete_document_chunks("file1")
+
+        self.assertFalse(result)  # contract preserved
+        mock_logger.exception.assert_called_once()
+        logged = " ".join(str(a) for a in mock_logger.exception.call_args.args)
+        self.assertIn("file1", logged)  # context logged
+
+
 if __name__ == "__main__":
     unittest.main()

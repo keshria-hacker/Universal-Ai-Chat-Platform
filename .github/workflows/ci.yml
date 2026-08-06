@@ -17,13 +17,15 @@ jobs:
         with:
           node-version: '22'
       - name: Install Python dependencies
-        run: python -m pip install --upgrade pip && pip install -r requirements.txt
+        run: python -m pip install --upgrade pip && pip install -r requirements.txt -r backend/requirements-dev.txt
       - name: Validate Python sources
         run: python -m compileall -q backend start.py tests
-      - name: Run tests
+      - name: Run tests with coverage
         env:
           TEST_MODE: "1"
-        run: python -m unittest discover -s tests -v
+        run: python -m coverage run --source=backend -m unittest discover -s tests -v
+      - name: Enforce coverage gate
+        run: python -m coverage report --fail-under=76
       - name: Validate browser scripts
         run: node --check frontend/js/app.js
 
@@ -44,4 +46,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: security-reports
-          path: *-report.json
+          path: |
+            bandit-report.json
+            safety-report.json

@@ -11,7 +11,7 @@ import asyncio
 import sys
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import httpx
 
@@ -556,6 +556,57 @@ class FetchProviderModelsWrapperTests(unittest.TestCase):
             ids = asyncio.run(llm._fetch_provider_models("openai", "sk-test"))
 
         self.assertEqual(ids, ["openai/gpt-4o"])
+
+
+class ModelDiscoveryLoggingTests(unittest.TestCase):
+    """Silent failures in model discovery must now be logged.
+
+    The graceful-degradation return contracts ([] / partial results) are
+    preserved — the audit finding (C-006) is about *visibility*, not raising.
+    """
+
+    def test_fetch_models_logs_connection_error(self):
+        """A connection error is logged with provider context and returns []."""
+        def handler(url, **kw):
+            raise httpx.ConnectError("connection refused")
+
+        with (
+            _make_client(handler),
+            patch("providers.model_discovery.logger") as mock_logger,
+        ):
+            models = asyncio.run(llm.fetch_models_from_provider(
+                api_key="sk-test",
+                endpoint_url="https://api.openai.com/v1/models",
+                provider_id="openai",
+                provider_label="OpenAI",
+            ))
+
+        self.assertEqual(models, [])  # contract preserved
+        mock_logger.warning.assert_called_once()
+        logged = " ".join(str(a) for a in mock_logger.warning.call_args.args)
+        self.assertIn("openai", logged)  # provider context logged
+
+    def test_fetch_ollama_logs_unreachable_and_returns_empty(self):
+        """Ollama unreachable after retries logs a warning and returns []."""
+        def handler(url, **kw):
+            raise httpx.ConnectError("connection refused")
+
+        from providers.model_discovery import fetch_ollama_models
+
+        with (
+            _make_client(handler),
+            patch("providers.ollama._try_start_ollama", new_callable=AsyncMock),
+            patch("asyncio.sleep", new_callable=AsyncMock),
+            patch("providers.model_discovery.logger") as mock_logger,
+        ):
+            models = asyncio.run(fetch_ollama_models(
+                base_url="http://127.0.0.1:11434"
+            ))
+
+        self.assertEqual(models, [])  # contract preserved
+        mock_logger.warning.assert_called_once()
+        logged = " ".join(str(a) for a in mock_logger.warning.call_args.args)
+        self.assertIn("Ollama unreachable", logged)
 
 
 if __name__ == "__main__":

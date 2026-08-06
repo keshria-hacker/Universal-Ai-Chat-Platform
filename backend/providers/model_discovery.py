@@ -3,11 +3,14 @@ Live model discovery - fetches available models from provider APIs.
 """
 import asyncio
 import json
+import logging
 
 import httpx
 
 from .base import NON_CHAT_MARKERS, ModelInfo, ProviderConfig
 from .inaccessible import is_inaccessible
+
+logger = logging.getLogger(__name__)
 
 
 async def fetch_models_from_provider(
@@ -112,9 +115,16 @@ async def fetch_models_from_provider(
                 else:
                     url = None
 
-    except (httpx.HTTPError, ValueError, json.JSONDecodeError):
+    except (httpx.HTTPError, ValueError, json.JSONDecodeError) as exc:
         # Return whatever we collected before the failure
-        pass
+        logger.warning(
+            "fetch_models_from_provider(%s) failed at %s (collected %d models): %s",
+            config.provider_id,
+            url,
+            len(all_models),
+            exc,
+            exc_info=True,
+        )
 
     return all_models
 
@@ -160,8 +170,8 @@ async def fetch_ollama_models(base_url: str = "http://localhost:11434") -> list[
                         litellm_id=f"ollama/{name}",
                     ))
         return models
-    except httpx.HTTPError:
-        pass
+    except httpx.HTTPError as exc:
+        logger.debug("Ollama not reachable at %s (%s); attempting auto-start", endpoint, exc)
 
     # Auto-start Ollama and retry with backoff
     from .ollama import _try_start_ollama as _async_ollama_start
@@ -186,8 +196,16 @@ async def fetch_ollama_models(base_url: str = "http://localhost:11434") -> list[
                             litellm_id=f"ollama/{name}",
                         ))
                 return models
-        except httpx.HTTPError:
+        except httpx.HTTPError as exc:
+            logger.debug("Ollama retry failed (delay=%ss): %s", delay, exc)
             continue
+
+    if not models:
+        logger.warning(
+            "Ollama unreachable at %s after %d retries; returning empty model list",
+            endpoint,
+            len(backoff_delays),
+        )
 
     return models
 
