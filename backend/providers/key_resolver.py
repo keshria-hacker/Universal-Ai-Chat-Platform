@@ -16,12 +16,13 @@ async def get_db_keys(db: AsyncSession) -> dict[str, str]:
 async def resolve_api_key(provider_id: str, db: AsyncSession) -> str | None:
     """Resolve the API key for a provider: DB first, then environment."""
     keys = await get_db_keys(db)
-    if provider_id in keys:
-        return keys[provider_id]
+    key = keys.get(provider_id)
+    if key and key.strip():
+        return key.strip()
 
     # Fallback to environment
     config = get_static_env_key(provider_id)
-    return config
+    return config.strip() if config and config.strip() else None
 
 
 def get_static_env_key(provider_id: str) -> str | None:

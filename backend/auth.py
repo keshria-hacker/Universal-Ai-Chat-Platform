@@ -124,7 +124,7 @@ async def _create_session(user: User, db: AsyncSession, response: Response | Non
             key=AUTH_COOKIE_NAME,
             value=token,
             max_age=max_age,
-            expires=max_age,
+            expires=datetime.now(UTC) + SESSION_LIFETIME,
             httponly=True,
             secure=settings.ENV == "production",
             samesite="lax",
@@ -136,7 +136,7 @@ async def _create_session(user: User, db: AsyncSession, response: Response | Non
             key=CSRF_COOKIE_NAME,
             value=csrf,
             max_age=max_age,
-            expires=max_age,
+            expires=datetime.now(UTC) + SESSION_LIFETIME,
             httponly=False,          # JS needs to read it
             secure=settings.ENV == "production",
             samesite="strict",

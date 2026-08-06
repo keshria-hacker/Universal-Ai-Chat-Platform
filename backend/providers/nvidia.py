@@ -26,7 +26,11 @@ class NVIDIAProvider(BaseProvider):
 
         async with httpx.AsyncClient(timeout=20.0) as client:
             try:
-                response = await client.get(self.config.model_endpoint, headers=headers)
+                # Use the same base URL as streaming so a local-NIM override in
+                # .env (NVIDIA_NIM_BASE_URL) is honored consistently instead of
+                # silently splitting model-listing and streaming endpoints.
+                base_url = settings.NVIDIA_NIM_BASE_URL.rstrip("/")
+                response = await client.get(f"{base_url}/models", headers=headers)
                 response.raise_for_status()
                 payload = response.json()
 

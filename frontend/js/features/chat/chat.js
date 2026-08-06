@@ -533,6 +533,7 @@ export async function runGeneration({ content, fileIds, regenerate }) {
   let hasStartedWriting = false;
   let newChatId = null;
   let streamError = null;
+  let aborted = false;
   let streamStarted = false;
 
   try {
@@ -583,6 +584,7 @@ export async function runGeneration({ content, fileIds, regenerate }) {
   } catch (err) {
     if (err.name === 'AbortError') {
       streamError = null;
+      aborted = true;
     } else if (err instanceof ApiError) {
       streamError = err.message;
     } else {
@@ -630,6 +632,10 @@ export async function runGeneration({ content, fileIds, regenerate }) {
       if (errLow.includes('not available') || errLow.includes('model not found') || errLow.includes('does not exist')) {
         // handled by models module
       }
+    } else if (aborted) {
+      // Aborted (Stop pressed or chat switched): never persist a partial reply
+      typingNode.remove();
+      showToast({ type: 'info', title: 'Generation stopped' });
     } else if (collected) {
       // Save chat ID on success
       if (newChatId && !getActiveChatId()) {
@@ -650,7 +656,7 @@ export async function runGeneration({ content, fileIds, regenerate }) {
       typingNode.replaceWith(finalNode);
       // Final render pass: ensure complete markdown with syntax highlighting
       await finalizeMarkdownRender(finalNode, collected);
-    } else if (!sawFirstToken && !streamError) {
+    } else if (!sawFirstToken) {
       // Aborted before any token
       typingNode.remove();
       showToast({ type: 'info', title: 'Generation stopped' });
@@ -774,24 +780,6 @@ export function initChatEvents() {
       handleSend();
     });
   });
-
-
-  // Token counter - live estimate
-  var tokenCountEl = document.getElementById('tokenCounter');
-  var msgInput = document.getElementById('messageInput');
-  function updateTokenEstimate() {
-    if (!tokenCountEl || !msgInput) return;
-    var text = msgInput.value || '';
-    var tokens = Math.ceil(text.length / 4);
-    var maxTokens = 8192;
-    var pct = tokens / maxTokens;
-    tokenCountEl.textContent = tokens.toLocaleString() + ' / ' + maxTokens.toLocaleString() + ' tokens';
-    tokenCountEl.className = 'token-counter';
-    if (pct > 0.9) tokenCountEl.classList.add('danger');
-    else if (pct > 0.7) tokenCountEl.classList.add('warning');
-  }
-  msgInput?.addEventListener('input', updateTokenEstimate);
-  updateTokenEstimate();
 
 
   // Token counter - live estimate

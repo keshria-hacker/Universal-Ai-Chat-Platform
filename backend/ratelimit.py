@@ -41,6 +41,8 @@ ENDPOINT_LIMITS = {
                                    RateLimitConfig(requests=3, window_seconds=3600, scope="user")],
     "/api/auth/reset-password":  [RateLimitConfig(requests=5, window_seconds=3600, scope="ip"),
                                    RateLimitConfig(requests=5, window_seconds=3600, scope="user")],
+    "/api/auth/logout":         [RateLimitConfig(requests=10, window_seconds=60, scope="ip"),
+                                 RateLimitConfig(requests=10, window_seconds=60, scope="user")],
     "/api/chat/stream":     [RateLimitConfig(requests=30, window_seconds=60, scope="ip"),
                               RateLimitConfig(requests=60, window_seconds=60, scope="user")],
     "/api/files":           [RateLimitConfig(requests=20, window_seconds=60, scope="ip"),

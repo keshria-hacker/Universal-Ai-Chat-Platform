@@ -261,7 +261,8 @@ function renderProviderKeyManager(keys) {
       btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i>`;
       try {
         const resp = await apiFetch(`/settings/providers/${pid}/models/refresh`);
-        const count = resp.count ?? 0;
+        const data = await resp.json();
+        const count = data.count ?? 0;
         showToast({
           type: 'success',
           title: pid,

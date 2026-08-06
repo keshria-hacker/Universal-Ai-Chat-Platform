@@ -204,8 +204,10 @@ function initGlobalListeners() {
       e.preventDefault();
       const cur = document.documentElement.getAttribute('data-theme');
       const newTheme = cur === 'dark' ? 'light' : 'dark';
-      import('./core/state.js').then((m) => m.setSettings({ ...m.getSettings(), theme: newTheme }));
-      settingsApplySettings();
+      import('./core/state.js').then((m) => {
+        m.setSettings({ ...m.getSettings(), theme: newTheme });
+        settingsApplySettings();
+      });
     }
     // Ctrl+Shift+W - Toggle web search
     if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'w') {

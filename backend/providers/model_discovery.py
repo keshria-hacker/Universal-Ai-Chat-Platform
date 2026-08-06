@@ -39,8 +39,10 @@ async def fetch_models_from_provider(
             timeout=httpx.Timeout(timeout_seconds, connect=min(10.0, timeout_seconds / 2))
         ) as client:
             visited: set[str] = set()
+            pages_fetched = 0
+            max_pages = 10
 
-            while url and url not in visited:
+            while url and url not in visited and pages_fetched < max_pages:
                 visited.add(url)
 
                 # Attach query auth (Gemini-style) per request

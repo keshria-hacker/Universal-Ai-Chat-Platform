@@ -22,10 +22,10 @@ export const $$ = (selector) => Array.from(document.querySelectorAll(selector));
  */
 export function escapeHtml(str) {
   return String(str ?? '').replace(/[&<>"']/g, (c) => ({
-    '&': '&',
-    '<': '<',
-    '>': '>',
-    '"': '"',
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
     "'": '&#39;',
   }[c]));
 }

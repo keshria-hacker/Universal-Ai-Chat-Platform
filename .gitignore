@@ -60,3 +60,12 @@ logs/
 
 # --- ChromaDB vector index (auto-generated at runtime) ---
 .chromadb/
+
+# --- Fix-session scratch files (local tooling) ---
+/fix*.mjs
+/fix3.py
+/fix_chat.py
+/fix_final.py
+/pytest_output*.txt
+/start_error.txt
+/start_output.txt

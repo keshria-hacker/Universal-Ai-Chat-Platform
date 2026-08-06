@@ -191,12 +191,18 @@ def main() -> None:
     print(f"-> Frontend: http://127.0.0.1:{FRONTEND_PORT}")
     print("-> Provider keys can be added from Settings -> Provider API Keys")
 
+    # Start frontend FIRST to avoid inheriting backend's stdout pipe handle on Windows.
+    # If backend starts first with stdout=PIPE, the frontend inherits the pipe and
+    # http.server closes connections prematurely.
+    frontend_proc = subprocess.Popen(frontend_cmd, cwd=FRONTEND_DIR)
+    # Small delay to ensure frontend process is fully initialized before
+    # backend creates its stdout pipe (which would be inherited otherwise).
+    time.sleep(0.5)
     backend_proc = subprocess.Popen(
         backend_cmd, cwd=BACKEND_DIR,
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
         text=True, bufsize=1,
     )
-    frontend_proc = subprocess.Popen(frontend_cmd, cwd=FRONTEND_DIR)
 
     # Thread to tee backend output to console in real time
     import threading
