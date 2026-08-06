@@ -72,7 +72,6 @@ export const TOAST_ICONS = {
 // Default settings
 export const DEFAULT_SETTINGS = {
   theme: 'dark',
-  accent: '#6C6BF5',
   fontSize: 'md',
   chatWidth: 'default',
   codeThemeDark: 'github-dark',

@@ -31,7 +31,7 @@
 - Web search augmentation (DuckDuckGo out of the box, Tavily/Brave optional)
 - In-app API key management (no server restarts)
 - Conversation history with bucketed date grouping
-- Theme system (dark/light/system) with accent colors
+- Paper / Ink theme system (light / dark / system) — monochrome design tokens
 - Extensible Skills system
 - Local authentication (single-user, password-hashed)
 - Ollama auto-detection (auto-start is a stub — user must run `ollama serve` manually)
@@ -41,7 +41,7 @@
 ## 2. Directory Structure
 
 ```
-Universal-Ai-Chat-Platform--main/
+Universal-Ai-Chat-Platform/
 ├── .dockerignore               # Docker build exclusion rules
 ├── Dockerfile                  # Multi-stage Docker build (builder + slim runtime)
 ├── docker-compose.yml          # Backend + optional Redis/frontend services
@@ -54,12 +54,26 @@ Universal-Ai-Chat-Platform--main/
 │   ├── api.py                  # All REST route handlers (health, models, chats, files, stream)
 │   ├── auth.py                 # Local authentication (register, login, logout, sessions)
 │   ├── llm.py                  # Provider registry, model discovery, LiteLLM streaming
+│   ├── security.py             # Fernet field encryption (MASTER_KEY) + CSRF tokens
+│   ├── prompt_injection.py     # Prompt-injection detection
 │   ├── document.py             # File text extraction (PDF, DOCX, XLSX, CSV, PPTX, code, text)
 │   ├── rag.py                  # Document chunking + vector retrieval (RAG with ChromaDB)
 │   ├── websearch.py            # Web search (DuckDuckGo Lite / Tavily / Brave)
 │   ├── ratelimit.py            # Rate limiting middleware
 │   ├── ratelimit_redis.py      # Redis-backed rate limit store
-│   ├── providers/__init__.py   # Provider registration, list_models, resolve_api_key
+│   ├── middleware/             # ASGI middleware (request ID, etc.)
+│   ├── migrations/             # Alembic migration scripts
+│   ├── providers/              # Provider adapters + registry (13 modules)
+│   │   ├── __init__.py         # Provider registration, list_models, resolve_api_key
+│   │   ├── base.py             # Abstract provider interface
+│   │   ├── registry.py         # ProviderRegistry + model resolution
+│   │   ├── model_discovery.py  # Live model fetch + curated fallback
+│   │   ├── key_resolver.py     # API key resolution (DB → env)
+│   │   ├── ollama.py           # Native Ollama streaming
+│   │   ├── openai_compatible.py# OpenAI-compatible provider adapter
+│   │   ├── anthropic.py / gemini.py / nvidia.py
+│   │   ├── litellm_fallback.py / compat.py / inaccessible.py
+│   │   └── ...
 │   └── skills/                 # Extensible skills sub-system
 │       ├── __init__.py         # Empty marker
 │       ├── registry.py         # Skill catalog loaded from SKILL.md files
@@ -73,11 +87,12 @@ Universal-Ai-Chat-Platform--main/
 │   ├── js/
 │   │   ├── app.js              # Main application bootstrap & global listeners
 │   │   ├── core/state.js       # Central signal-based reactive state store
-│   │   ├── core/storage.js     # localStorage persistence (theme, settings, etc.)
 │   │   ├── shared/             # Shared utilities
+│   │   │   ├── constants.js    # DEFAULT_SETTINGS, CHAT_BUCKETS, provider colors
 │   │   │   ├── http.js         # Authenticated fetch + SSE helpers
+│   │   │   ├── markdown.js     # Streaming markdown + highlight.js rendering
 │   │   │   ├── toast.js        # Toast notifications
-│   │   │   └── utils.js        # escapeHtml, formatDate, etc.
+│   │   │   └── utils.js        # escapeHtml, formatDate, bucketFor, etc.
 │   │   └── features/           # Feature modules (one per UI area)
 │   │       ├── auth/auth.js            # Login/register/forgot password
 │   │       ├── chat/chat.js            # Chat messages, streaming, SSE handling
@@ -218,21 +233,22 @@ The frontend now uses a **feature-based module structure** under `frontend/js/fe
 
 | Module | Responsibility |
 |--------|----------------|
-| `core/state.js` | Central signal store (providers, models, chats, messages, selectedModel, temperature, maxTokens, reasoningEffort, webSearchEnabled, etc.) |
-| `core/storage.js` | localStorage persistence for theme, settings, sidebar collapse, accent, font size |
+| `core/state.js` | Central signal store — `[get, set]` pairs for providers, models, chats, messages, selectedModel, temperature, maxTokens, reasoningEffort, webSearchEnabled, settings (persisted to `localStorage` as `nexus-settings`), etc. |
+| `shared/constants.js` | `DEFAULT_SETTINGS`, `CHAT_BUCKETS`, provider color/label maps |
 | `shared/http.js` | `apiFetch`, `apiPost`, `apiDelete`, `streamChat` — authenticated requests + SSE |
+| `shared/markdown.js` | Streaming-safe markdown → HTML rendering (marked + highlight.js) |
 | `shared/toast.js` | Toast notifications |
 | `shared/utils.js` | `escapeHtml`, `formatDate`, `debounce`, etc. |
 | `features/auth/auth.js` | Login, register, forgot password, session check |
 | `features/chat/chat.js` | Message rendering, SSE streaming, send/regenerate, file attachments |
 | `features/models/models.js` | Model selector dropdown, provider status badges, "no models" handling |
-| `features/settings/settings.js` | Theme/accent/font pickers, provider key manager (add/remove keys) |
+| `features/settings/settings.js` | Theme (Paper/Ink/system), font size, chat width, code theme, animations; provider key manager (add/remove keys) |
 | `features/skills/skills.js` | Skills modal: search, category/invocation filters, detail panel, execution |
 | `features/sidebar/sidebar.js` | Chat history list (bucketed by date), new chat, delete chat |
 
 **Boot sequence (`app.js`):**
 1. Initialize global state (`state.js`)
-2. Load persisted settings (`storage.js`)
+2. Load persisted settings from `localStorage` (`state.js` → `nexus-settings`, applied by `settings.js`)
 3. Initialize feature modules in dependency order: auth → settings → sidebar → models → chat → skills
 4. Call `initGlobalListeners()` for topbar controls (temperature, tokens, reasoning, web search, shortcuts)
 
@@ -241,52 +257,79 @@ The frontend now uses a **feature-based module structure** under `frontend/js/fe
 The frontend uses a central **signal-based reactive store** (`core/state.js`):
 
 ```javascript
-// Signal pattern
-function createSignal(initial) {
-  let value = initial;
+// state.js — createSignal returns a [get, set, subscribe] tuple
+export function createSignal(initialValue) {
+  let value = initialValue;
   const subscribers = new Set();
-  return {
-    get: () => value,
-    set: (newVal) => { value = newVal; subscribers.forEach(fn => fn(value)); },
-    subscribe: (fn) => { subscribers.add(fn); return () => subscribers.delete(fn); }
+
+  const get = () => value;
+
+  const set = (newValue) => {
+    const nextValue = typeof newValue === 'function' ? newValue(value) : newValue;
+    if (Object.is(nextValue, value)) return;
+    value = nextValue;
+    subscribers.forEach((fn) => fn(value));
   };
+
+  const subscribe = (fn) => {
+    subscribers.add(fn);
+    return () => subscribers.delete(fn);
+  };
+
+  return [get, set, subscribe];
 }
 
-const state = {
-    providers: createSignal([]),
-    models: createSignal([]),
-    chats: createSignal([]),
-    activeChatId: createSignal(null),
-    selectedModel: createSignal(null),
-    messages: createSignal([]),
-    attachedFiles: createSignal([]),
-    isGenerating: createSignal(false),
-    temperature: createSignal(0.7),
-    maxTokens: createSignal(1024),
-    reasoningEffort: createSignal('medium'),
-    webSearchEnabled: createSignal(false),
-    settings: createSignal({ theme: 'dark', accent: 'indigo', fontSize: 'medium', chatWidth: 'normal', codeTheme: 'github-dark', animations: true }),
-    sidebarCollapsed: createSignal(false),
-    backendReachable: createSignal(null),
-};
+// State is exported as destructured [get, set] pairs
+export const [getProviders, setProviders] = createSignal([]);
+export const [getChats, setChats] = createSignal([]);
+export const [getMessages, setMessages] = createSignal([]);
+export const [getActiveChatId, setActiveChatId] = createSignal(null);
+export const [getSelectedModel, setSelectedModel] = createSignal(null);
+export const [getIsGenerating, setIsGenerating] = createSignal(false);
+export const [getTemperature, setTemperature] = createSignal(0.7);
+export const [getMaxTokens, setMaxTokens] = createSignal('1024');
+export const [getReasoningEffort, setReasoningEffort] = createSignal('medium');
+export const [getWebSearchEnabled, setWebSearchEnabled] = createSignal(false);
+export const [getSidebarCollapsed, setSidebarCollapsed] = createSignal(false);
+export const [getBackendReachable, setBackendReachable] = createSignal(null);
 ```
 
 Components subscribe to signals they care about — when state changes, only dependent UI updates.
 
 ### 4.5 Design System
 
-| Token | Dark Value | Light Value |
-|-------|-----------|-------------|
-| `--bg-base` | `#0F1115` | `#F7F7FA` |
-| `--bg-surface` | `#171A21` | `#FFFFFF` |
-| `--bg-elevated` | `#1F232C` | `#FFFFFF` |
-| `--accent` | `#6C6BF5` (indigo) | same |
-| `--text-primary` | `#E8EAED` | `#14161B` |
+Nexus uses a **Paper / Ink** design language — a monochrome "premium electronic paper" chrome for a high-end desktop productivity tool. Two themes are applied via the `data-theme` attribute on `<html>` (`light` / `dark`, or `system` resolved at runtime). The chrome is intentionally monochrome: `--accent` is *ink*, not a brand hue, and there are **no user-selectable accent swatches**.
+
+| Token | INK (dark) | PAPER (light) |
+|-------|------------|---------------|
+| `--bg-base` (page ground) | `#121315` | `#F4F2ED` |
+| `--bg-surface` (chrome) | `#191A1D` | `#FBFAF7` |
+| `--bg-elevated` (raised cards) | `#202125` | `#FEFDF9` |
+| `--bg-elevated-2` (wells/insets) | `#28292E` | `#EDEAE3` |
+| `--accent` (ink) | `#E6E4DE` | `#3A342B` |
+| `--text-primary` | `#EAE9E4` | `#201D17` |
 | `--font-display` | Sora | Sora |
 | `--font-body` | Inter | Inter |
 | `--font-mono` | JetBrains Mono | JetBrains Mono |
 
-The accent color is dynamic — users can pick from 6 swatches (indigo, green, amber, red, blue, clay). Every accent-aware element uses `var(--accent)` and `rgba(var(--accent-rgb), X)`.
+Semantic surface aliases keep raised/sunken layering consistent across the chrome, cards, popovers and dialogs:
+
+| Alias | Maps to | Used for |
+|-------|---------|----------|
+| `--surface-page` | `--bg-base` | page ground |
+| `--surface-panel` | `--bg-surface` | sidebar, topbar, suggestion cards |
+| `--surface-raised` | `--bg-elevated` | modals, popovers, dialogs, dropdowns |
+| `--surface-sunken` | `--bg-elevated-2` | active rows, wells, inset fields |
+
+Design rules:
+
+- **No pure `#FFF` / `#000`** — surfaces are warm off-whites (`#FEFDF9`) and deep charcoals; white/black are never used as surface fills.
+- **Color is rare and semantic** — `--success` / `--warning` / `--danger` / `--info` / `--reasoning` exist only for status/state, never for chrome.
+- **Typography** — Sora (display), Inter (body), JetBrains Mono (code); the Settings font-size maps to a `--font-scale` multiplier (`sm .92` / `md 1` / `lg 1.1`) applied to messages, composer, suggestion cards and welcome copy.
+- **Interaction states** — every control defines default / hover / focus-visible / active / disabled; micro-interactions run at 120 ms (fast) / 200 ms (medium) on `cubic-bezier(.4,0,.2,1)`.
+- **Motion & contrast** — `prefers-reduced-motion` collapses animation; `forced-colors` keeps focus rings visible under Windows High Contrast.
+
+See [`docs/design-system.md`](docs/design-system.md) for the full token reference and component guidance.
 
 ---
 

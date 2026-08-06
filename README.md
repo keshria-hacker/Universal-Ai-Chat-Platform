@@ -12,7 +12,7 @@ A privacy-first AI workspace for chatting with cloud and local LLMs from a singl
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Status](https://img.shields.io/badge/Status-Active%20Development-orange)]()
-[![Version](https://img.shields.io/badge/Version-v1.1-6C63FF)]()
+[![Version](https://img.shields.io/badge/Version-v1.1-3A342B)]()
 
 </div>
 
@@ -80,7 +80,7 @@ Conversation history is stored locally and organized in a date-based sidebar.
 
 ### 🎨 Customizable Interface
 
-Choose between light, dark, or system themes with multiple accent colors.
+A **Paper / Ink** design system — warm paper whites (PAPER) or deep charcoal (INK), with a restrained monochrome palette. Adjust font size, chat width, code theme, and animations from Settings.
 
 ### 🔐 Privacy Focused
 

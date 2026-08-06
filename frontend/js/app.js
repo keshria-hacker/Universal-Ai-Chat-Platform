@@ -35,7 +35,6 @@ function initDOM() {
     settingsOverlay: $('#settingsOverlay'),
     closeSettings: $('#closeSettings'),
     themeOptions: $('#themeOptions'),
-    accentOptions: $('#accentOptions'),
     fontSizeSegmented: $('#fontSizeSegmented'),
     chatWidthSegmented: $('#chatWidthSegmented'),
     codeThemeSelect: $('#codeThemeSelect'),

@@ -4,7 +4,7 @@
 
 import { getApiBaseUrl, setApiBaseUrl, apiFetch, apiPost, apiPut, apiDelete } from '../../shared/http.js';
 import { showToast } from '../../shared/toast.js';
-import { escapeHtml, hexToRgb } from '../../shared/utils.js';
+import { escapeHtml } from '../../shared/utils.js';
 import {
   getSettings, setSettings, getProviders,
   getActiveChatId, setActiveChatId
@@ -22,7 +22,6 @@ export function initElements() {
     closeSettings: $('#closeSettings'),
     settingsBtn: $('#settingsBtn'),
     themeOptions: $('#themeOptions'),
-    accentOptions:$('#accentOptions'),
     fontSizeSegmented: $('#fontSizeSegmented'),
     chatWidthSegmented: $('#chatWidthSegmented'),
     codeThemeSelect: $('#codeThemeSelect'),
@@ -57,9 +56,6 @@ export function applySettings() {
   root.setAttribute('data-theme', effectiveTheme);
   const themeIcon = elements.themeToggle?.querySelector('i');
   if (themeIcon) themeIcon.className = effectiveTheme === 'dark' ? 'fa-solid fa-moon' : 'fa-solid fa-sun';
-  root.style.setProperty('--accent', s.accent);
-  const rgb = hexToRgb(s.accent);
-  root.style.setProperty('--accent-rgb', `${rgb.r},${rgb.g},${rgb.b}`);
   document.body.setAttribute('data-font-size', s.fontSize);
   document.body.setAttribute('data-chat-width', s.chatWidth);
   document.body.setAttribute('data-animations', s.animations ? 'on' : 'off');
@@ -108,7 +104,6 @@ export function loadSettings() {
 export function syncSettingsUI() {
   const s = getSettings();
   $$('.theme-option').forEach(b => b.classList.toggle('active', b.dataset.theme === s.theme));
-  $$('.accent-swatch').forEach(b => b.classList.toggle('active', b.dataset.accent.toLowerCase() === s.accent.toLowerCase()));
   $$('#fontSizeSegmented button').forEach(b => b.classList.toggle('active', b.dataset.size === s.fontSize));
   $$('#chatWidthSegmented button').forEach(b => b.classList.toggle('active', b.dataset.width === s.chatWidth));
 
@@ -327,15 +322,6 @@ export function initSettings() {
     const b = e.target.closest('.theme-option');
     if (!b) return;
     setSettings({ ...getSettings(), theme: b.dataset.theme });
-    syncSettingsUI();
-    applySettings();
-  });
-
-  // Accent color
-  elements.accentOptions?.addEventListener('click', (e) => {
-    const b = e.target.closest('.accent-swatch');
-    if (!b) return;
-    setSettings({ ...getSettings(), accent: b.dataset.accent });
     syncSettingsUI();
     applySettings();
   });
