@@ -79,7 +79,7 @@ function setSendButtonState(generating) {
   if (generating) {
     sendBtn.style.display = 'none';
     stopBtn.style.display = '';
-    document.title = '🔴 Generating… — Nexus';
+    document.title = 'Generating… — Nexus';
   } else {
     sendBtn.style.display = '';
     stopBtn.style.display = 'none';

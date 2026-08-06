@@ -257,7 +257,7 @@ export function selectModel(model, opts = {}) {
   if (reasoningEl) {
     if (hasReasoning) {
       const labels = { low: 'Low', medium: 'Medium', high: 'High', extra_high: 'Extra High' };
-      reasoningEl.textContent = `🧠 ${labels[effort] || effort}`;
+      reasoningEl.innerHTML = `<i class="fa-solid fa-brain"></i> ${labels[effort] || effort}`;
       reasoningEl.classList.remove('hidden');
     } else {
       reasoningEl.classList.add('hidden');
