@@ -492,8 +492,24 @@ export async function runGeneration({ content, fileIds, regenerate }) {
     }, 1000);
   }
 
+  var _thinkStartTime = Date.now();
+  var _thinkTimer = null;
+  function startElapsedTimer() {
+    if (_thinkTimer) clearInterval(_thinkTimer);
+    _thinkTimer = setInterval(function() {
+      var elapsed = Math.floor((Date.now() - _thinkStartTime) / 1000);
+      var phaseEl = typingNode.querySelector(".msg-phase-status");
+      if (phaseEl) {
+        var es = phaseEl.querySelector(".msg-thinking-elapsed");
+        if (!es) { es = document.createElement("span"); es.className = "msg-thinking-elapsed"; phaseEl.appendChild(es); }
+        es.textContent = elapsed + "s";
+      }
+    }, 1000);
+  }
+
   // PHASE: Connecting
   setThinkingPhase(typingNode, 'connecting');
+  startElapsedTimer();
   startElapsedTimer();
 
   const controller = new AbortController();
@@ -777,15 +793,22 @@ export function initChatEvents() {
   msgInput?.addEventListener('input', updateTokenEstimate);
   updateTokenEstimate();
 
-  // Keyboard shortcut hint toggle
-  var hintEl = document.getElementById('composerHint');
-  var hintToggle = document.getElementById('hintToggle');
-  if (hintEl && hintToggle) {
-    var hintHidden = localStorage.getItem('nexus-hint-hidden');
-    if (hintHidden === 'true') hintEl.style.display = 'none';
-    hintToggle.addEventListener('click', function() {
-      var isHidden = hintEl.style.display === 'none';
-      hintEl.style.display = isHidden ? '' : 'none';
-      localStorage.setItem('nexus-hint-hidden', isHidden ? 'false' : 'true');
-    });
-  }}
+
+  // Token counter - live estimate
+  var tokenCountEl = document.getElementById('tokenCounter');
+  var msgInput = document.getElementById('messageInput');
+  function updateTokenEstimate() {
+    if (!tokenCountEl || !msgInput) return;
+    var text = msgInput.value || '';
+    var tokens = Math.ceil(text.length / 4);
+    var maxTokens = 8192;
+    var pct = tokens / maxTokens;
+    tokenCountEl.textContent = tokens.toLocaleString() + ' / ' + maxTokens.toLocaleString() + ' tokens';
+    tokenCountEl.className = 'token-counter';
+    if (pct > 0.9) tokenCountEl.classList.add('danger');
+    else if (pct > 0.7) tokenCountEl.classList.add('warning');
+  }
+  msgInput?.addEventListener('input', updateTokenEstimate);
+  updateTokenEstimate();
+
+}
