@@ -5,10 +5,11 @@ import json
 from typing import Any
 
 import httpx
+from response_events import normalize_finish_reason, normalize_usage
 
 from config import settings
 
-from .base import BaseProvider, ModelInfo
+from .base import BaseProvider, ModelInfo, ProviderStreamChunk
 from .inaccessible import track_inaccessible
 
 
@@ -62,7 +63,7 @@ class NVIDIAProvider(BaseProvider):
 
         return models
 
-    async def stream_completion(
+    async def stream_completion(  # noqa: PLR0917
         self,
         model_id: str,
         messages: list[dict],
@@ -94,6 +95,8 @@ class NVIDIAProvider(BaseProvider):
             "temperature": temperature,
             "max_tokens": max_tokens,
         }
+        if kwargs.get("tools"):
+            payload["tools"] = kwargs["tools"]
 
         headers = {
             "Authorization": f"Bearer {api_key or self.api_key}",
@@ -103,6 +106,8 @@ class NVIDIAProvider(BaseProvider):
 
         timeout = httpx.Timeout(120.0, connect=10.0)
         yielded_content = False
+        saw_terminal = False
+        include_metadata = bool(kwargs.get("include_metadata"))
 
         try:
             async with (
@@ -116,19 +121,36 @@ class NVIDIAProvider(BaseProvider):
                         if line.startswith("data: "):
                             data = line[6:]
                             if data == "[DONE]":
+                                saw_terminal = True
+                                if include_metadata:
+                                    yield ProviderStreamChunk(terminal=True)
                                 break
                             try:
                                 chunk = json.loads(data)
-                                content = (
-                                    chunk.get("choices", [{}])[0]
-                                    .get("delta", {})
-                                    .get("content", "")
-                                )
+                                if chunk.get("error"):
+                                    raise RuntimeError(str(chunk["error"]))
+                                choices = chunk.get("choices") or []
+                                choice = choices[0] if choices else {}
+                                content = choice.get("delta", {}).get("content", "")
+                                raw_finish = choice.get("finish_reason")
+                                usage = normalize_usage(chunk.get("usage"))
                                 if content:
                                     yielded_content = True
+                                if include_metadata:
+                                    if content or raw_finish or usage:
+                                        yield ProviderStreamChunk(
+                                            text=content or None,
+                                            finish_reason=normalize_finish_reason(raw_finish) if raw_finish else None,
+                                            usage=usage,
+                                            metadata={"provider_finish_reason": str(raw_finish)} if raw_finish else None,
+                                            terminal=raw_finish is not None,
+                                        )
+                                elif content:
                                     yield content
-                            except json.JSONDecodeError:
-                                pass
+                            except json.JSONDecodeError as exc:
+                                raise RuntimeError("NVIDIA NIM returned a malformed JSON stream chunk") from exc
+            if include_metadata and not saw_terminal:
+                raise RuntimeError("NVIDIA NIM response stream ended before its terminal marker")
             if not yielded_content:
                 raise RuntimeError(
                     "NVIDIA NIM returned no visible text. Try increasing max_tokens."

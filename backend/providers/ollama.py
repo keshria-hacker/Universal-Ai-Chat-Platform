@@ -8,10 +8,11 @@ import subprocess
 from typing import Any
 
 import httpx
+from response_events import FinishReason, UsageInfo, normalize_finish_reason
 
 from config import settings
 
-from .base import BaseProvider, ModelInfo
+from .base import BaseProvider, ModelInfo, ProviderStreamChunk
 from .inaccessible import is_inaccessible
 
 # Global process tracking
@@ -104,7 +105,7 @@ class OllamaProvider(BaseProvider):
 
         return models
 
-    async def stream_completion(
+    async def stream_completion(  # noqa: PLR0917
         self,
         model_id: str,
         messages: list[dict],
@@ -137,10 +138,14 @@ class OllamaProvider(BaseProvider):
         }
         if max_tokens:
             payload["options"]["num_predict"] = max_tokens
+        if kwargs.get("tools"):
+            payload["tools"] = kwargs["tools"]
 
         # Connection timeout: 5s, Total timeout: 90s (longer for streaming)
         timeout = httpx.Timeout(90.0, connect=5.0)
         yielded_content = False
+        saw_terminal = False
+        include_metadata = bool(kwargs.get("include_metadata"))
 
         try:
             async with (
@@ -157,7 +162,31 @@ class OllamaProvider(BaseProvider):
                         content = chunk.get("message", {}).get("content", "")
                         if content:
                             yielded_content = True
+                        if chunk.get("done"):
+                            saw_terminal = True
+                        if include_metadata:
+                            raw_finish = chunk.get("done_reason") if chunk.get("done") else None
+                            usage = {
+                                "input_tokens": chunk.get("prompt_eval_count"),
+                                "output_tokens": chunk.get("eval_count"),
+                            }
+                            usage = {key: value for key, value in usage.items() if isinstance(value, int)}
+                            if content or raw_finish or usage:
+                                yield ProviderStreamChunk(
+                                    text=content or None,
+                                    finish_reason=(
+                                        normalize_finish_reason(raw_finish)
+                                        if raw_finish
+                                        else FinishReason.STOP if chunk.get("done") else None
+                                    ),
+                                    usage=UsageInfo(**usage) if usage else None,
+                                    metadata={"provider_finish_reason": str(raw_finish)} if raw_finish else None,
+                                    terminal=bool(chunk.get("done")),
+                                )
+                        elif content:
                             yield content
+            if include_metadata and not saw_terminal:
+                raise RuntimeError("Ollama response stream ended before its terminal chunk")
             if not yielded_content:
                 raise RuntimeError(
                     "Ollama returned no visible text. Try increasing the output token limit."

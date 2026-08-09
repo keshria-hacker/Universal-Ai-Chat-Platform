@@ -1,11 +1,20 @@
 """
 Base provider types and abstract interface.
 """
+import os
 from abc import ABC, abstractmethod
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass
 from typing import Any
-import os
+
+from response_events import (
+    FinishReason,
+    ModelCapabilities,
+    UsageInfo,
+    normalize_finish_reason,
+    normalize_usage,
+)
+from response_events import ResponseEventType
 
 
 @dataclass
@@ -45,14 +54,107 @@ class ModelInfo:
     supports_tools: bool = False
     supports_vision: bool = False
     supports_reasoning: bool = False
+    capabilities: ModelCapabilities | None = None
     owned_by: str | None = None
     description: str = ""
     model_id: str = ""  # Raw model ID from provider (after strip_prefix, before litellm_prefix)
+
+    def __post_init__(self) -> None:
+        if self.capabilities is None:
+            self.capabilities = ModelCapabilities(
+                streaming=self.supports_streaming,
+                tools=self.supports_tools,
+                reasoning=self.supports_reasoning,
+                vision=self.supports_vision,
+            )
 
     # Backward compatibility property
     @property
     def provider(self) -> str:
         return self.provider_id
+
+
+@dataclass
+class ProviderStreamChunk:
+    """Provider-boundary stream data before canonical event serialization.
+
+    Existing callers may continue consuming plain strings. The canonical
+    response facade requests these typed chunks so finish reasons and usage are
+    not discarded while provider payloads remain private to the adapter.
+    """
+
+    text: str | None = None
+    reasoning: str | None = None
+    # Tool calls: list of dicts with id, type, function:{name,arguments}
+    tool_calls: list[dict] | None = None
+    # Citations: list of citation objects
+    citations: list[dict] | None = None
+    # Artifacts: list of artifact objects
+    artifacts: list[dict] | None = None
+    # Tool results: list of dicts with tool_call_id and result/content
+    tool_results: list[dict] | None = None
+    finish_reason: FinishReason | None = None
+    usage: UsageInfo | None = None
+    metadata: dict[str, Any] | None = None
+    terminal: bool = False
+
+
+def parse_litellm_stream_chunk(chunk: Any) -> ProviderStreamChunk | None:
+    """Extract canonical provider-boundary data from a LiteLLM chunk."""
+    choices = getattr(chunk, "choices", None) or []
+    choice = choices[0] if choices else None
+    delta = getattr(choice, "delta", None) if choice is not None else None
+    raw_finish_reason = getattr(choice, "finish_reason", None) if choice is not None else None
+    raw_usage = getattr(chunk, "usage", None)
+
+    text = getattr(delta, "content", None) if delta is not None else None
+    reasoning = getattr(delta, "reasoning_content", None) if delta is not None else None
+    # Tool calls from LiteLLM/OpenAI format
+    raw_tool_calls = getattr(delta, "tool_calls", None) if delta is not None else None
+    tool_calls = None
+    if raw_tool_calls:
+        # Convert tool_calls to serializable dicts
+        tool_calls = []
+        for tc in raw_tool_calls:
+            tc_dict = {
+                "id": getattr(tc, "id", None),
+                "type": getattr(tc, "type", "function"),
+                "function": {
+                    "name": getattr(getattr(tc, "function", None), "name", None),
+                    "arguments": getattr(getattr(tc, "function", None), "arguments", None),
+                },
+            }
+            tool_calls.append(tc_dict)
+
+    # Citations (provider-specific, check common fields)
+    citations = None
+    raw_citations = getattr(delta, "citations", None) if delta is not None else None
+    if raw_citations:
+        citations = raw_citations if isinstance(raw_citations, list) else [raw_citations]
+
+    # Artifacts (provider-specific, check common fields)
+    artifacts = None
+    raw_artifacts = getattr(delta, "artifacts", None) if delta is not None else None
+    if raw_artifacts:
+        artifacts = raw_artifacts if isinstance(raw_artifacts, list) else [raw_artifacts]
+
+    usage = normalize_usage(raw_usage)
+    finish_reason = normalize_finish_reason(raw_finish_reason) if raw_finish_reason else None
+    metadata = {"provider_finish_reason": str(raw_finish_reason)} if raw_finish_reason else None
+
+    if not any((text, reasoning, usage, finish_reason, tool_calls, citations, artifacts)):
+        return None
+    return ProviderStreamChunk(
+        text=text or None,
+        reasoning=reasoning or None,
+        tool_calls=tool_calls,
+        citations=citations,
+        artifacts=artifacts,
+        usage=usage,
+        finish_reason=finish_reason,
+        metadata=metadata,
+        terminal=raw_finish_reason is not None,
+    )
 
 
 class BaseProvider(ABC):
@@ -69,7 +171,7 @@ class BaseProvider(ABC):
             if not resolved_key or not resolved_key.strip():
                 raise ValueError(
                     f"{config.label} API key required. Set {config.env_key_name} "
-                    f"in environment or .env file, or link it in Settings → Provider API Keys."
+                    f"in environment or .env file, or link it in Settings -> Provider API Keys."
                 )
             self._api_key = resolved_key.strip()
 
@@ -84,16 +186,7 @@ class BaseProvider(ABC):
         pass
 
     @abstractmethod
-    async def stream_completion(
-        self,
-        model_id: str,
-        messages: list[dict],
-        temperature: float = 0.7,
-        max_tokens: int | None = None,
-        reasoning_effort: str | None = None,
-        api_key: str | None = None,
-        **kwargs: Any,
-    ) -> AsyncGenerator[str]:
+    async def stream_completion(self, model_id: str, messages: list[dict], temperature: float = 0.7, max_tokens: int | None = None, reasoning_effort: str | None = None, api_key: str | None = None, **kwargs: Any) -> AsyncGenerator[str | ProviderStreamChunk]:
         """Stream a completion from the provider."""
         pass
 
