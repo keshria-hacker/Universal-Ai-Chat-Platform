@@ -10,8 +10,8 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-from tools.registry import registry
-from tools.schemas import ToolDefinition
+from backend.tools.registry import registry
+from backend.tools.schemas import ToolDefinition
 
 
 # -----------------------------------------------------------------------------

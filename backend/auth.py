@@ -10,12 +10,12 @@ import hmac
 import secrets
 from datetime import UTC, datetime, timedelta
 
-from database import get_db
+from backend.database import get_db
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response, status
 from loguru import logger
-from models import AuthSession, PasswordResetToken, User
-from ratelimit_redis import get_rate_limit_store
-from schemas import (
+from backend.models import AuthSession, PasswordResetToken, User
+from backend.ratelimit_redis import get_rate_limit_store
+from backend.schemas import (
     AuthCredentialsIn,
     AuthStatusOut,
     AuthTokenOut,
@@ -26,7 +26,7 @@ from schemas import (
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from config import settings
+from backend.config import settings
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
 SESSION_LIFETIME = timedelta(days=30)

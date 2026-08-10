@@ -9,7 +9,7 @@ from collections.abc import AsyncGenerator
 from typing import Any
 
 # Core provider facade - all main API functions
-from providers import (
+from backend.providers import (
     CURATED_MODELS,
     MODELS,
     PROVIDERS,
@@ -25,10 +25,12 @@ from providers import (
     registry,
     resolve_api_key,
     stream_completion,
+    stream_response_events,
 )
+from backend.providers.base import ProviderStreamChunk
 
 # Backward compatibility - model discovery functions
-from providers.model_discovery import (
+from backend.providers.model_discovery import (
     cleanup_ollama,
     fetch_models_from_provider,
     fetch_ollama_models,
@@ -42,14 +44,14 @@ inaccessible_models = _inaccessible_models
 # Backward-compatible Ollama functions
 async def list_ollama_models(base_url: str = "http://localhost:11434") -> list[ModelInfo]:
     """Return models from local Ollama server (backward-compatible wrapper)."""
-    from providers.model_discovery import fetch_ollama_models
+    from backend.providers.model_discovery import fetch_ollama_models
     return await fetch_ollama_models(base_url)
 
 
 async def _try_start_ollama() -> None:
     """Attempt to start Ollama server (backward-compatible wrapper)."""
     # This wrapper exists so tests can patch llm._try_start_ollama
-    from providers.ollama import _try_start_ollama as _real_try_start_ollama
+    from backend.providers.ollama import _try_start_ollama as _real_try_start_ollama
     await _real_try_start_ollama()
 
 
@@ -99,59 +101,78 @@ def __getattr__(name):
     """Lazy load provider configs for backward compatibility."""
     global _providers_static
     if name == "_providers_static":
-        from providers import list_providers_static
+        from backend.providers import list_providers_static
         _providers_static = list_providers_static()
         return _providers_static
     if name == "_ollama_start_attempted":
-        from providers.model_discovery import _ollama_start_attempted
+        from backend.providers.model_discovery import _ollama_start_attempted
         return _ollama_start_attempted
     if name == "_ollama_process":
-        from providers.model_discovery import _ollama_process
+        from backend.providers.model_discovery import _ollama_process
         return _ollama_process
     raise AttributeError(f"module 'llm' has no attribute '{name}'")
 async def list_models(db: Any) -> list[ModelInfo]:
     """Return all selectable models from all linked providers."""
-    from providers import list_models as _list_models
+    from backend.providers import list_models as _list_models
     return await _list_models(db)
 
 
 async def list_provider_status(db: Any) -> list[dict[str, Any]]:
     """Return providers currently reachable with valid keys."""
-    from providers import list_provider_status as _list_provider_status
+    from backend.providers import list_provider_status as _list_provider_status
     return await _list_provider_status(db)
 
 
 async def default_model_id(db: Any) -> str | None:
     """Pick first available model (prefers Ollama)."""
-    from providers import default_model_id as _default_model_id
+    from backend.providers import default_model_id as _default_model_id
     return await _default_model_id(db)
 
 
-async def stream_completion(
+async def stream_completion(  # noqa: PLR0917
     model_id: str,
     messages: list[dict],
     db: Any,
     temperature: float = 0.7,
     max_tokens: int = 1024,
     reasoning_effort: str | None = None,
-) -> AsyncGenerator[str]:
+    include_metadata: bool = False,
+) -> AsyncGenerator[str | ProviderStreamChunk]:
     """Stream completion from the appropriate provider."""
-    from providers import stream_completion as _stream_completion
+    from backend.providers import stream_completion as _stream_completion
     async for chunk in _stream_completion(
         model_id, messages, db, temperature, max_tokens, reasoning_effort
     ):
         yield chunk
 
 
+async def stream_response_events(  # noqa: PLR0917
+    model_id: str,
+    messages: list[dict],
+    db: Any,
+    temperature: float = 0.7,
+    max_tokens: int = 1024,
+    reasoning_effort: str | None = None,
+    message_id: str | None = None,
+    request_id: str | None = None,
+) -> AsyncGenerator[Any]:
+    """Stream canonical Nexus response events from providers."""
+    from backend.providers import stream_response_events as _stream_response_events
+    async for event in _stream_response_events(
+        model_id, messages, db, temperature, max_tokens, reasoning_effort, message_id, request_id
+    ):
+        yield event
+
+
 async def get_db_keys(db: Any) -> dict[str, str]:
     """Fetch all stored provider keys from the database."""
-    from providers import get_db_keys as _get_db_keys
+    from backend.providers import get_db_keys as _get_db_keys
     return await _get_db_keys(db)
 
 
 async def resolve_api_key(provider_id: str, db: Any) -> str | None:
     """Resolve API key for a provider: DB first, then env."""
-    from providers import resolve_api_key as _resolve_api_key
+    from backend.providers import resolve_api_key as _resolve_api_key
     return await _resolve_api_key(provider_id, db)
 
 
@@ -191,14 +212,14 @@ def sanitize_error(msg: str) -> str:
 
 def _cleanup_ollama() -> None:
     """Cleanup auto-started Ollama process on shutdown."""
-    from providers import cleanup_ollama
+    from backend.providers import cleanup_ollama
     cleanup_ollama()
 
 
 # Backward-compatible wrapper for old fetch_models_from_provider API
 # ============================================================
 
-async def fetch_models_from_provider(
+async def fetch_models_from_provider(  # noqa: PLR0917
     api_key: str,
     endpoint_url: str,
     provider_id: str,
@@ -221,8 +242,8 @@ async def fetch_models_from_provider(
     and fetch_models_from_provider pattern. It's kept for backward compatibility
     with existing tests and code.
     """
-    from providers.base import ProviderConfig
-    from providers.model_discovery import fetch_models_from_provider as new_fetch_models
+    from backend.providers.base import ProviderConfig
+    from backend.providers.model_discovery import fetch_models_from_provider as new_fetch_models
 
     # Build a ProviderConfig from the old parameters
     config = ProviderConfig(
@@ -280,9 +301,9 @@ async def _fetch_provider_models(provider_id: str, api_key: str) -> list[str]:
 
     Returns a list of LiteLLM model IDs (with prefix) for the given provider.
     """
-    from providers import list_providers_static
-    from providers.base import ProviderConfig
-    from providers.model_discovery import fetch_models_from_provider as new_fetch_models
+    from backend.providers import list_providers_static
+    from backend.providers.base import ProviderConfig
+    from backend.providers.model_discovery import fetch_models_from_provider as new_fetch_models
 
     # Build config from static registry
     static = list_providers_static()
@@ -354,6 +375,7 @@ __all__ = [
     "list_provider_status",
     "default_model_id",
     "stream_completion",
+    "stream_response_events",
     "get_db_keys",
     "resolve_api_key",
     "list_providers_static",

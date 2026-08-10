@@ -8,9 +8,9 @@ import subprocess
 from typing import Any
 
 import httpx
-from response_events import FinishReason, UsageInfo, normalize_finish_reason
+from backend.response_events import FinishReason, UsageInfo, normalize_finish_reason
 
-from config import settings
+from backend.config import settings
 
 from .base import BaseProvider, ModelInfo, ProviderStreamChunk
 from .inaccessible import is_inaccessible

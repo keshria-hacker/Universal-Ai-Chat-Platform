@@ -4,7 +4,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from tools.schemas import ToolDefinition, tool_definition_to_openai_function
+from backend.tools.schemas import ToolDefinition, tool_definition_to_openai_function
 
 logger = logging.getLogger(__name__)
 

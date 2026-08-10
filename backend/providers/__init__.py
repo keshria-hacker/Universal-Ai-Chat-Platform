@@ -27,13 +27,13 @@ from .model_discovery import (
     fetch_ollama_models,
 )
 from .registry import init_provider_registry, registry
-from tools import (
+from backend.tools import (
     ToolCall,
     ToolResult,
     executor,
     registry as tool_registry,
 )
-from response_events import (
+from backend.response_events import (
     FinishReason,
     ResponseEvent,
     ResponseEventBuilder,

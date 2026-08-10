@@ -27,7 +27,7 @@ class ListModelsCoverageTests(unittest.TestCase):
     def test_list_models_resolve_api_key_returns_none(self):
         """When resolve_api_key returns None, provider is skipped (line 247)."""
         import asyncio
-        from providers import list_models
+        from backend.providers import list_models
 
         mock_db = AsyncMock()
 
@@ -50,7 +50,7 @@ class ListModelsCoverageTests(unittest.TestCase):
     def test_list_models_ollama_exception_caught(self):
         """Exception in fetch_ollama_models is caught and ignored (lines 239-241)."""
         import asyncio
-        from providers import list_models
+        from backend.providers import list_models
 
         mock_db = AsyncMock()
 
@@ -81,7 +81,7 @@ class ListModelsCoverageTests(unittest.TestCase):
     def test_list_models_registry_get_config_returns_none(self):
         """When registry.get_config returns None, provider is skipped (line 250)."""
         import asyncio
-        from providers import list_models
+        from backend.providers import list_models
 
         mock_db = AsyncMock()
 
@@ -107,7 +107,7 @@ class ListModelsCoverageTests(unittest.TestCase):
     def test_list_models_fetch_models_from_provider_exception(self):
         """fetch_models_from_provider exception is caught and returns empty list (lines 253-254)."""
         import asyncio
-        from providers import list_models
+        from backend.providers import list_models
 
         mock_db = AsyncMock()
 
@@ -138,7 +138,7 @@ class ListModelsCoverageTests(unittest.TestCase):
     def test_list_models_asyncio_gather_exception_handling(self):
         """asyncio.gather with return_exceptions=True handles exceptions (line 264)."""
         import asyncio
-        from providers import list_models
+        from backend.providers import list_models
 
         mock_db = AsyncMock()
 
@@ -179,8 +179,8 @@ class ProviderReachableTests(unittest.TestCase):
 
     def setUp(self):
         # Import the function to test
-        from providers import _provider_reachable
-        from providers.base import ProviderConfig
+        from backend.providers import _provider_reachable
+        from backend.providers.base import ProviderConfig
         self._provider_reachable = _provider_reachable
         self.ProviderConfig = ProviderConfig
 
@@ -352,7 +352,7 @@ class ListProviderStatusCoverageTests(unittest.TestCase):
     def test_list_provider_status_cloud_provider_exception(self):
         """Exception in _provider_reachable is caught (lines 304-305)."""
         import asyncio
-        from providers import list_provider_status
+        from backend.providers import list_provider_status
 
         mock_db = AsyncMock()
 
@@ -389,8 +389,8 @@ class StreamCompletionCoverageTests(unittest.TestCase):
     def test_stream_completion_litellm_fallback(self):
         """Falls back to LiteLLM when provider class not found (lines 363-364)."""
         import asyncio
-        from providers import stream_completion
-        from providers.base import ProviderConfig
+        from backend.providers import stream_completion
+        from backend.providers.base import ProviderConfig
 
         mock_db = AsyncMock()
 
@@ -434,8 +434,8 @@ class StreamCompletionCoverageTests(unittest.TestCase):
     def test_stream_completion_custom_provider_class(self):
         """Uses custom provider class when available (lines 370-374)."""
         import asyncio
-        from providers import stream_completion
-        from providers.base import ProviderConfig
+        from backend.providers import stream_completion
+        from backend.providers.base import ProviderConfig
 
         mock_db = AsyncMock()
 
@@ -481,7 +481,7 @@ class StreamCompletionUnknownProviderTests(unittest.TestCase):
     def test_stream_completion_unknown_provider_with_class_but_no_config_raises(self):
         """Provider class exists but config missing raises ValueError (lines 370-372)."""
         import asyncio
-        from providers import stream_completion
+        from backend.providers import stream_completion
 
         mock_db = AsyncMock()
 
@@ -510,21 +510,21 @@ class ResolveModelTests(unittest.TestCase):
 
     def test_resolve_model_valid(self):
         """Valid model ID is parsed correctly."""
-        from providers import _resolve_model
+        from backend.providers import _resolve_model
         provider_id, litellm_id = _resolve_model("openai::gpt-4")
         self.assertEqual(provider_id, "openai")
         self.assertEqual(litellm_id, "gpt-4")
 
     def test_resolve_model_invalid_format(self):
         """Invalid model ID format raises ValueError."""
-        from providers import _resolve_model
+        from backend.providers import _resolve_model
         with self.assertRaises(ValueError) as ctx:
             _resolve_model("invalid-format")
         self.assertIn("Invalid model ID format", str(ctx.exception))
 
     def test_resolve_model_no_separator(self):
         """Model ID without :: raises ValueError."""
-        from providers import _resolve_model
+        from backend.providers import _resolve_model
         with self.assertRaises(ValueError):
             _resolve_model("just-a-string")
 
@@ -535,8 +535,8 @@ class DefaultModelIdTests(unittest.TestCase):
     def test_default_model_id_with_models(self):
         """Returns first model ID when models exist."""
         import asyncio
-        from providers import default_model_id
-        from providers.base import ModelInfo
+        from backend.providers import default_model_id
+        from backend.providers.base import ModelInfo
 
         mock_db = AsyncMock()
 
@@ -557,7 +557,7 @@ class DefaultModelIdTests(unittest.TestCase):
     def test_default_model_id_no_models(self):
         """Returns None when no models available."""
         import asyncio
-        from providers import default_model_id
+        from backend.providers import default_model_id
 
         mock_db = AsyncMock()
 
@@ -576,7 +576,7 @@ class ClearInaccessibleModelsTests(unittest.TestCase):
 
     def test_clear_inaccessible_models_returns_count(self):
         """Calls clear_inaccessible and returns count."""
-        from providers import clear_inaccessible_models
+        from backend.providers import clear_inaccessible_models
 
         with patch("providers.clear_inaccessible", return_value=5) as mock_clear:
             result = clear_inaccessible_models()
@@ -589,8 +589,8 @@ class ListProvidersStaticTests(unittest.TestCase):
 
     def test_list_providers_static_includes_env_key_set(self):
         """Returns provider metadata with env_key_set."""
-        from providers import list_providers_static
-        from providers.base import ProviderConfig
+        from backend.providers import list_providers_static
+        from backend.providers.base import ProviderConfig
 
         mock_config = ProviderConfig(
             provider_id="openai", label="OpenAI", local=False, env_key_name="OPENAI_API_KEY",
@@ -610,8 +610,8 @@ class ListProvidersStaticTests(unittest.TestCase):
 
     def test_list_providers_static_no_env_key(self):
         """Returns env_key_set=False when no key in environment."""
-        from providers import list_providers_static
-        from providers.base import ProviderConfig
+        from backend.providers import list_providers_static
+        from backend.providers.base import ProviderConfig
 
         mock_config = ProviderConfig(
             provider_id="anthropic", label="Anthropic", local=False, env_key_name="ANTHROPIC_API_KEY",

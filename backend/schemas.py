@@ -7,6 +7,9 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from backend.response_events import ModelCapabilities
+
+
 
 class ChatMessageIn(BaseModel):
     role: str = Field(pattern="^(user|assistant|system)$")
@@ -92,6 +95,12 @@ class ModelInfo(BaseModel):
     name: str
     provider: str
     litellm_id: str
+    context_window: int | None = None
+    # Providers supply a typed ModelCapabilities model (see response_events).
+    # Declaring it here keeps the wire shape identical to the previous dict
+    # while letting Pydantic validate provider objects instead of rejecting
+    # them as "Input should be a valid dictionary".
+    capabilities: ModelCapabilities | None = None
 
 
 class ProviderModelEntry(BaseModel):

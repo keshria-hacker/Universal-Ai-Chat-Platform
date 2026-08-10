@@ -7,6 +7,7 @@ Tests create one user and reuse its token for authenticated endpoints.
 import sys
 import unittest
 import os
+import tempfile
 from pathlib import Path
 
 # Enable test mode to disable rate limiting and set test master key
@@ -16,11 +17,23 @@ os.environ["MASTER_KEY"] = "7nQheyKjedj1oYnZhCq3PqxMRCl9E5rdteunHkQzGBQ="
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "backend"))
 
+# Point at an isolated throwaway database BEFORE importing any backend module.
+# database.py builds its engine at import time from settings.DATABASE_URL, whose
+# default is the real history/nexus.db. Without this override these tests would
+# wipe the developer's actual account, chats, and stored provider keys.
+TEST_DB_PATH = Path(tempfile.gettempdir()) / "nexus_test_integration_auth.db"
+if TEST_DB_PATH.exists():
+    TEST_DB_PATH.unlink()
+os.environ["DATABASE_URL"] = f"sqlite+aiosqlite:///{TEST_DB_PATH}"
+
+from config import reset_settings, settings as config_settings
+reset_settings()
+config_settings.DATABASE_URL = os.environ["DATABASE_URL"]
+
 from httpx import ASGITransport, AsyncClient
 from main import app
 from database import init_db, reset_db
 from ratelimit_redis import reset_rate_limit_store_for_testing
-from config import reset_settings
 
 
 class AuthIntegrationTests(unittest.IsolatedAsyncioTestCase):
@@ -34,11 +47,9 @@ class AuthIntegrationTests(unittest.IsolatedAsyncioTestCase):
     def setUpClass(cls):
         cls._token = None
         cls._csrf = None
-        # Remove any existing DB so we start clean
-        db_path = ROOT / "history" / "nexus.db"
-        if db_path.exists():
-            db_path.unlink()
-        # Reset settings cache to pick up test MASTER_KEY
+        # The isolated temp database is configured at import time above; each
+        # test then gets clean tables via reset_db(). Never touch the real
+        # history/nexus.db here.
         reset_settings()
 
     async def asyncSetUp(self):

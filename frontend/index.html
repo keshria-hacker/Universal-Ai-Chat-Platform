@@ -17,9 +17,10 @@
 <link id="hljs-theme" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.0/styles/github-dark.min.css">
 
 <!-- App styles (cache-busting v3 for Paper/Ink design system) -->
-<link rel="stylesheet" href="css/style.css?v=5">
+<link rel="stylesheet" href="css/style.css?v=6">
 </head>
 <body data-code-theme="github-dark">
+<a href="#messages" class="skip-link">Skip to conversation</a>
 
 <!-- ============ FILE:// PROTOCOL DETECTION ============ -->
 <script>
@@ -50,7 +51,9 @@ if (location.protocol === 'file:') {
     <i class="fa-solid fa-bars"></i>
   </button>
   <div class="mobile-brand">
-    <img src="assets/logo.svg" alt="" width="22" height="22">
+    <span class="logo-mark mobile-logo-mark" aria-hidden="true">
+      <img src="assets/logo.png" alt="" class="app-logo">
+    </span>
     <span>Nexus</span>
   </div>
   <button class="icon-btn" id="mobileNewChat" title="New chat" aria-label="New chat">
@@ -66,7 +69,9 @@ if (location.protocol === 'file:') {
 
       <div class="sidebar-header">
         <div class="brand">
-          <img src="assets/logo.svg" alt="Nexus logo" width="26" height="26">
+          <span class="logo-mark sidebar-logo-mark" aria-hidden="true">
+            <img src="assets/logo.png" alt="Nexus logo" class="app-logo">
+          </span>
           <span class="brand-name">Nexus</span>
         </div>
         <button class="icon-btn ghost" id="collapseSidebar" title="Collapse sidebar" aria-label="Collapse sidebar">
@@ -180,7 +185,9 @@ if (location.protocol === 'file:') {
         <!-- Welcome screen (shown when no messages) -->
         <div class="welcome-screen" id="welcomeScreen">
           <div class="welcome-mark">
-            <img src="assets/logo.svg" alt="" width="46" height="46">
+            <span class="logo-mark welcome-logo-mark" aria-hidden="true">
+              <img src="assets/logo.png" alt="" class="app-logo">
+            </span>
           </div>
           <h1>Where should we start?</h1>
           <p class="welcome-sub">One box, every model. Switch providers mid-conversation without losing context.</p>
@@ -485,7 +492,9 @@ if (location.protocol === 'file:') {
       <div class="spinner-ring"></div>
       <div class="spinner-dot"></div>
     </div>
-    <img src="assets/logo.svg" alt="Nexus" class="auth-logo">
+    <span class="logo-mark auth-logo-mark" aria-hidden="true">
+      <img src="assets/logo.png" alt="Nexus" class="auth-logo app-logo">
+    </span>
     <p class="auth-loading-text" id="authLoadingText">Connecting to backend</p>
     <p class="auth-loading-sub" id="authLoadingSub">Establishing secure connection&hellip;</p>
     <!-- Error + retry — shown when all auto-retries are exhausted -->
@@ -499,7 +508,9 @@ if (location.protocol === 'file:') {
 
   <!-- Sign-in / register form -->
   <form class="auth-card hidden" id="authForm">
-    <img src="assets/logo.svg" alt="Nexus" class="auth-logo">
+    <span class="logo-mark auth-logo-mark" aria-hidden="true">
+      <img src="assets/logo.png" alt="Nexus" class="auth-logo app-logo">
+    </span>
     <p class="auth-kicker">PRIVATE AI WORKSPACE</p>
     <h1 id="authTitle">Sign in to Nexus</h1>
     <p id="authDescription">Use your local account to access your providers and conversations.</p>

@@ -7,7 +7,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from skills.executor import ExecutionResult, get_executor
+from backend.skills.executor import ExecutionResult, get_executor
 
 logger = logging.getLogger(__name__)
 

@@ -7,14 +7,14 @@ from collections.abc import AsyncGenerator
 from dataclasses import dataclass
 from typing import Any
 
-from response_events import (
+from backend.response_events import (
     FinishReason,
     ModelCapabilities,
     UsageInfo,
     normalize_finish_reason,
     normalize_usage,
 )
-from response_events import ResponseEventType
+from backend.response_events import ResponseEventType
 
 
 @dataclass

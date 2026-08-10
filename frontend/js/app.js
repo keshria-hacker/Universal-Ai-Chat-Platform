@@ -12,6 +12,7 @@ import { init as initSkills, openSkillsModal, closeSkillsModal } from './feature
 import { initElements as initSidebarElements, initSidebar, openMobileSidebar, closeMobileSidebar, toggleSidebarCollapse, loadChatList as sidebarLoadChatList, renderChatHistory as sidebarRenderChatHistory, openChat as sidebarOpenChat, deleteChat as sidebarDeleteChat } from './features/sidebar/sidebar.js';
 import { showToast, initToasts } from './shared/toast.js';
 import { getApiBaseUrl } from './shared/http.js';
+import { injectMarkdownCSP } from './shared/markdown.js';
 
 // Global elements that cross module boundaries
 let elements = {};
@@ -422,6 +423,9 @@ start.bat           <span class="comment"># Windows, from the project root</span
 async function init() {
   // Initialize DOM references
   initDOM();
+
+  // Inject CSP for markdown content security
+  injectMarkdownCSP();
 
   // Initialize core state
   initAppState();

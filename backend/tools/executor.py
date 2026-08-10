@@ -6,8 +6,8 @@ import logging
 import time
 from typing import Any
 
-from tools.registry import ToolRegistry
-from tools.schemas import ToolCall, ToolResult
+from backend.tools.registry import ToolRegistry, registry
+from backend.tools.schemas import ToolCall, ToolResult
 
 logger = logging.getLogger(__name__)
 
@@ -30,11 +30,11 @@ class ToolValidationError(ToolExecutionError):
 class ToolExecutor:
     def __init__(
         self,
-        registry: ToolRegistry | None = None,
+        tool_registry: ToolRegistry | None = None,
         default_timeout: float = 30.0,
         max_result_size: int = 100000,
     ):
-        self.registry = registry or ToolRegistry()
+        self.registry = tool_registry or registry
         self.default_timeout = default_timeout
         self.max_result_size = max_result_size
         self._active_tasks = {}
@@ -145,7 +145,7 @@ class ToolExecutor:
         return final_results
 
     def _validate_arguments(self, tool_def, arguments):
-        from tools.schemas import validate_tool_arguments
+        from backend.tools.schemas import validate_tool_arguments
         return validate_tool_arguments(tool_def, arguments)
 
     async def _execute_with_timeout(self, handler, arguments, timeout=None):

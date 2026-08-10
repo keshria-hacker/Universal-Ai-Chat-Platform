@@ -15,7 +15,7 @@ from html import unescape
 
 import httpx
 
-from config import settings
+from backend.config import settings
 
 
 @dataclass

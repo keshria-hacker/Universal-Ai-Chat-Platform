@@ -1,6 +1,6 @@
 """
 Middleware package for FastAPI application.
 """
-from middleware.request_id import RequestIDMiddleware
+from backend.middleware.request_id import RequestIDMiddleware
 
 __all__ = ["RequestIDMiddleware"]

@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy.pool import NullPool
 
-from config import settings
+from backend.config import settings
 
 # SQLite (the MVP's default store) serializes writes. Under concurrent request
 # load a write can collide and surface as "database is locked" — exactly the

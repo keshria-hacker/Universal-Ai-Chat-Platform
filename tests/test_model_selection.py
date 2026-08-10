@@ -7,7 +7,7 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 
-import llm
+from backend import llm
 
 
 class ModelSelectionTests(unittest.TestCase):

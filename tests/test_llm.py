@@ -250,7 +250,7 @@ class FetchModelsFromProviderTests(unittest.IsolatedAsyncioTestCase):
             ),
         ]
 
-        with patch("providers.model_discovery.fetch_models_from_provider", new_callable=AsyncMock) as mock_fetch:
+        with patch("backend.providers.model_discovery.fetch_models_from_provider", new_callable=AsyncMock) as mock_fetch:
             mock_fetch.return_value = mock_models
 
             result = await llm.fetch_models_from_provider(
@@ -291,7 +291,7 @@ class FetchModelsFromProviderTests(unittest.IsolatedAsyncioTestCase):
             ),
         ]
 
-        with patch("providers.model_discovery.fetch_models_from_provider", new_callable=AsyncMock) as mock_fetch:
+        with patch("backend.providers.model_discovery.fetch_models_from_provider", new_callable=AsyncMock) as mock_fetch:
             mock_fetch.return_value = mock_models
 
             result = await llm.fetch_models_from_provider(
@@ -320,8 +320,8 @@ class FetchProviderModelsTests(unittest.IsolatedAsyncioTestCase):
             ),
         ]
 
-        with patch("providers.list_providers_static", return_value={"openai": {}}):
-            with patch("providers.model_discovery.fetch_models_from_provider", new_callable=AsyncMock) as mock_fetch:
+        with patch("backend.providers.list_providers_static", return_value={"openai": {}}):
+            with patch("backend.providers.model_discovery.fetch_models_from_provider", new_callable=AsyncMock) as mock_fetch:
                 mock_fetch.return_value = mock_models
 
                 result = await llm._fetch_provider_models("openai", "sk-test")
@@ -343,8 +343,8 @@ class FetchProviderModelsTests(unittest.IsolatedAsyncioTestCase):
             ),
         ]
 
-        with patch("providers.list_providers_static", return_value={"gemini": {}}):
-            with patch("providers.model_discovery.fetch_models_from_provider", new_callable=AsyncMock) as mock_fetch:
+        with patch("backend.providers.list_providers_static", return_value={"gemini": {}}):
+            with patch("backend.providers.model_discovery.fetch_models_from_provider", new_callable=AsyncMock) as mock_fetch:
                 mock_fetch.return_value = mock_models
 
                 result = await llm._fetch_provider_models("gemini", "sk-test")
@@ -365,8 +365,8 @@ class FetchProviderModelsTests(unittest.IsolatedAsyncioTestCase):
             ),
         ]
 
-        with patch("providers.list_providers_static", return_value={"nvidia": {}}):
-            with patch("providers.model_discovery.fetch_models_from_provider", new_callable=AsyncMock) as mock_fetch:
+        with patch("backend.providers.list_providers_static", return_value={"nvidia": {}}):
+            with patch("backend.providers.model_discovery.fetch_models_from_provider", new_callable=AsyncMock) as mock_fetch:
                 mock_fetch.return_value = mock_models
 
                 result = await llm._fetch_provider_models("nvidia", "sk-test")
@@ -376,14 +376,14 @@ class FetchProviderModelsTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_unknown_provider_returns_empty(self):
         """Unknown provider returns empty list."""
-        with patch("providers.list_providers_static", return_value={}):
+        with patch("backend.providers.list_providers_static", return_value={}):
             result = await llm._fetch_provider_models("unknown", "sk-test")
             self.assertEqual(result, [])
 
     async def test_exception_returns_empty(self):
         """Exception during fetch returns empty list."""
-        with patch("providers.list_providers_static", return_value={"openai": {}}):
-            with patch("providers.model_discovery.fetch_models_from_provider", new_callable=AsyncMock) as mock_fetch:
+        with patch("backend.providers.list_providers_static", return_value={"openai": {}}):
+            with patch("backend.providers.model_discovery.fetch_models_from_provider", new_callable=AsyncMock) as mock_fetch:
                 mock_fetch.side_effect = Exception("Network error")
 
                 result = await llm._fetch_provider_models("openai", "sk-test")
@@ -410,8 +410,8 @@ class FetchProviderModelsTests(unittest.IsolatedAsyncioTestCase):
             ),
         ]
 
-        with patch("providers.list_providers_static", return_value={"openai": {}}):
-            with patch("providers.model_discovery.fetch_models_from_provider", new_callable=AsyncMock) as mock_fetch:
+        with patch("backend.providers.list_providers_static", return_value={"openai": {}}):
+            with patch("backend.providers.model_discovery.fetch_models_from_provider", new_callable=AsyncMock) as mock_fetch:
                 mock_fetch.return_value = mock_models
 
                 result = await llm._fetch_provider_models("openai", "sk-test")
@@ -434,7 +434,7 @@ class OllamaWrapperTests(unittest.IsolatedAsyncioTestCase):
             ),
         ]
 
-        with patch("providers.model_discovery.fetch_ollama_models", new_callable=AsyncMock) as mock_fetch:
+        with patch("backend.providers.model_discovery.fetch_ollama_models", new_callable=AsyncMock) as mock_fetch:
             mock_fetch.return_value = mock_models
 
             result = await llm.list_ollama_models("http://localhost:11434")
@@ -446,13 +446,13 @@ class OllamaWrapperTests(unittest.IsolatedAsyncioTestCase):
     async def test_try_start_ollama_calls_real(self):
         """_try_start_ollama calls the real function."""
         # Mock the async function properly
-        with patch("providers.ollama._try_start_ollama", new_callable=AsyncMock) as mock_start:
+        with patch("backend.providers.ollama._try_start_ollama", new_callable=AsyncMock) as mock_start:
             await llm._try_start_ollama()
             mock_start.assert_called_once()
 
     def test_cleanup_ollama_calls_real(self):
         """_cleanup_ollama calls the real function."""
-        with patch("providers.cleanup_ollama") as mock_cleanup:
+        with patch("backend.providers.cleanup_ollama") as mock_cleanup:
             llm._cleanup_ollama()
             mock_cleanup.assert_called_once()
 
@@ -462,26 +462,26 @@ class GetAttrTests(unittest.TestCase):
 
     def test_providers_static_lazy_load(self):
         """_providers_static triggers lazy load."""
-        # The __getattr__ for _providers_static imports from providers.list_providers_static
+        # The __getattr__ for _providers_static imports from backend.providers.list_providers_static
         # We need to mock it properly. First delete the module-level attribute to trigger __getattr__
         import backend.llm as llm_module
         if hasattr(llm_module, '_providers_static'):
             delattr(llm_module, '_providers_static')
 
-        with patch("providers.list_providers_static", return_value={"openai": {"label": "OpenAI", "local": False, "env_key_set": False}}):
+        with patch("backend.providers.list_providers_static", return_value={"openai": {"label": "OpenAI", "local": False, "env_key_set": False}}):
             result = llm_module._providers_static
             self.assertEqual(result, {"openai": {"label": "OpenAI", "local": False, "env_key_set": False}})
 
     def test_ollama_start_attempted_lazy_load(self):
         """_ollama_start_attempted triggers lazy load."""
-        with patch("providers.model_discovery._ollama_start_attempted", True):
+        with patch("backend.providers.model_discovery._ollama_start_attempted", True):
             result = llm._ollama_start_attempted
             self.assertTrue(result)
 
     def test_ollama_process_lazy_load(self):
         """_ollama_process triggers lazy load."""
         mock_process = MagicMock()
-        with patch("providers.model_discovery._ollama_process", mock_process):
+        with patch("backend.providers.model_discovery._ollama_process", mock_process):
             result = llm._ollama_process
             self.assertEqual(result, mock_process)
 
@@ -501,7 +501,7 @@ class AsyncFacadeTests(unittest.IsolatedAsyncioTestCase):
             ModelInfo(id="m1", name="Model 1", provider_id="p1", provider_label="Provider 1", litellm_id="p1/m1")
         ]
 
-        with patch("providers.list_models", new_callable=AsyncMock) as mock_list:
+        with patch("backend.providers.list_models", new_callable=AsyncMock) as mock_list:
             mock_list.return_value = mock_models
             mock_db = MagicMock()
 
@@ -514,7 +514,7 @@ class AsyncFacadeTests(unittest.IsolatedAsyncioTestCase):
         """list_provider_status delegates to providers.list_provider_status."""
         mock_status = [{"id": "p1", "status": "connected"}]
 
-        with patch("providers.list_provider_status", new_callable=AsyncMock) as mock_list:
+        with patch("backend.providers.list_provider_status", new_callable=AsyncMock) as mock_list:
             mock_list.return_value = mock_status
             mock_db = MagicMock()
 
@@ -525,7 +525,7 @@ class AsyncFacadeTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_default_model_id_delegates(self):
         """default_model_id delegates to providers.default_model_id."""
-        with patch("providers.default_model_id", new_callable=AsyncMock) as mock_default:
+        with patch("backend.providers.default_model_id", new_callable=AsyncMock) as mock_default:
             mock_default.return_value = "openai::openai/gpt-4o"
             mock_db = MagicMock()
 
@@ -540,7 +540,7 @@ class AsyncFacadeTests(unittest.IsolatedAsyncioTestCase):
             yield "chunk1"
             yield "chunk2"
 
-        with patch("providers.stream_completion", return_value=mock_generator()) as mock_stream:
+        with patch("backend.providers.stream_completion", return_value=mock_generator()) as mock_stream:
             mock_db = MagicMock()
 
             chunks = []
@@ -559,7 +559,7 @@ class AsyncFacadeTests(unittest.IsolatedAsyncioTestCase):
         """get_db_keys delegates to providers.get_db_keys."""
         mock_keys = {"openai": "sk-test"}
 
-        with patch("providers.get_db_keys", new_callable=AsyncMock) as mock_get:
+        with patch("backend.providers.get_db_keys", new_callable=AsyncMock) as mock_get:
             mock_get.return_value = mock_keys
             mock_db = MagicMock()
 
@@ -570,7 +570,7 @@ class AsyncFacadeTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_resolve_api_key_delegates(self):
         """resolve_api_key delegates to providers.resolve_api_key."""
-        with patch("providers.resolve_api_key", new_callable=AsyncMock) as mock_resolve:
+        with patch("backend.providers.resolve_api_key", new_callable=AsyncMock) as mock_resolve:
             mock_resolve.return_value = "sk-resolved"
             mock_db = MagicMock()
 
@@ -780,7 +780,7 @@ class StreamCompletionErrorHandlingTests(unittest.IsolatedAsyncioTestCase):
             yield "chunk1"
             raise Exception("Provider error")
 
-        with patch("providers.stream_completion", return_value=mock_generator()):
+        with patch("backend.providers.stream_completion", return_value=mock_generator()):
             mock_db = MagicMock()
 
             chunks = []
@@ -799,7 +799,7 @@ class StreamCompletionErrorHandlingTests(unittest.IsolatedAsyncioTestCase):
         async def mock_generator():
             yield "chunk"
 
-        with patch("providers.stream_completion", return_value=mock_generator()) as mock_stream:
+        with patch("backend.providers.stream_completion", return_value=mock_generator()) as mock_stream:
             mock_db = MagicMock()
 
             async for _ in llm.stream_completion(
@@ -825,3 +825,5 @@ class StreamCompletionErrorHandlingTests(unittest.IsolatedAsyncioTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+

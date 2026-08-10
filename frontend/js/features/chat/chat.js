@@ -5,7 +5,8 @@
 import { getApiBaseUrl, apiFetch, streamChatCompletion, parseSSE, ApiError } from '../../shared/http.js';
 import { showToast, showError } from '../../shared/toast.js';
 import { escapeHtml, formatTime, nowTime, formatBytes, extOf } from '../../shared/utils.js';
-import { renderMarkdown, renderMarkdownStream, finalizeMarkdownRender } from '../../shared/markdown.js';
+import { renderMarkdown, renderMarkdownStream, finalizeMarkdownRender, clearStreamCache } from '../../shared/markdown.js';
+import { createResponseController } from './response_controller.js';
 import {
   getMessages, setMessages, getActiveChatId, setActiveChatId,
   getSelectedModel, selectModel, getModels, getAttachedFiles, setAttachedFiles,
@@ -126,6 +127,7 @@ function setThinkingPhase(node, phase, elapsedSec = null) {
  * Show or update the reasoning/thinking section inside an assistant message node.
  * Reasoning content is rendered as a collapsible <details> block above the
  * content area. It is ephemeral — not stored in message history.
+ * Supports markdown rendering within reasoning blocks (§31).
  */
 function showReasoningInNode(node, text) {
   let section = node.querySelector('.msg-reasoning');
@@ -145,7 +147,138 @@ function showReasoningInNode(node, text) {
     }
   }
   const contentEl = section.querySelector('.msg-reasoning-content');
-  if (contentEl) contentEl.textContent = text;
+  if (contentEl) {
+    // Render markdown for reasoning content
+    contentEl.innerHTML = renderMarkdown(text || '');
+    // Apply syntax highlighting if hljs is available
+    import('../../shared/markdown.js').then(mod => {
+      mod.enhanceCodeBlocks(contentEl);
+    }).catch(() => {});
+  }
+}
+
+
+/**
+ * Show or update a tool call section inside an assistant message node.
+ * Tool calls are rendered as collapsible blocks with function name and arguments.
+ */
+function showToolCallInNode(node, toolCall) {
+  let container = node.querySelector(".msg-tool-calls");
+  if (!container) {
+    container = document.createElement("div");
+    container.className = "msg-tool-calls";
+    const body = node.querySelector(".msg-body");
+    const ref = body.querySelector(".msg-content") || body.querySelector(".typing-indicator");
+    if (ref) {
+      body.insertBefore(container, ref);
+    } else {
+      body.appendChild(container);
+    }
+  }
+
+  let toolEl = container.querySelector("[data-tool-id="" + toolCall.id + ""]");
+  if (!toolEl) {
+    toolEl = document.createElement("div");
+    toolEl.className = "tool-call";
+    toolEl.dataset.toolId = toolCall.id;
+    toolEl.innerHTML = "<details open><summary><i class="fa-solid fa-wrench"></i> " + escapeHtml(toolCall.name) + " <span class="tool-call-status"></span></summary><div class="tool-call-args"><pre><code>" + escapeHtml(toolCall.arguments || "") + "</code></pre></div><div class="tool-call-result" style="display:none;"></div></details>";
+    container.appendChild(toolEl);
+  }
+
+  if (toolCall.arguments !== undefined) {
+    const argsEl = toolEl.querySelector(".tool-call-args code");
+    if (argsEl) argsEl.textContent = toolCall.arguments;
+  }
+
+  if (toolCall.status !== undefined) {
+    const statusEl = toolEl.querySelector(".tool-call-status");
+    if (statusEl) statusEl.textContent = toolCall.status;
+  }
+
+  if (toolCall.result !== undefined) {
+    const resultEl = toolEl.querySelector(".tool-call-result");
+    if (resultEl) {
+      resultEl.style.display = "block";
+      resultEl.innerHTML = "<pre><code>" + escapeHtml(toolCall.result) + "</code></pre>";
+    }
+    const statusEl = toolEl.querySelector(".tool-call-status");
+    if (statusEl) statusEl.textContent = " ✓";
+    toolEl.classList.add("completed");
+  }
+}
+
+
+/**
+ * Show || update a citation inside an assistant message node.
+ * Citations are rendered as inline numbered references with a references list.
+ */
+function showCitationInNode(node, citation) {
+  let container = node.querySelector(".msg-citations");
+  if (!container) {
+    container = document.createElement("div");
+    container.className = "msg-citations";
+    const body = node.querySelector(".msg-body");
+    const ref = body.querySelector(".msg-actions");
+    if (ref) {
+      body.insertBefore(container, ref);
+    } else {
+      body.appendChild(container);
+    }
+  }
+
+  const idx = citation.index ?? container.querySelectorAll(".citation-item").length + 1;
+  let citeEl = container.querySelector("[data-citation-index="" + idx + ""]");
+  if (!citeEl) {
+    citeEl = document.createElement("div");
+    citeEl.className = "citation-item";
+    citeEl.dataset.citationIndex = idx;
+    citeEl.innerHTML = "<span class="citation-badge">[" + idx + "]</span><span class="citation-title">" + escapeHtml(citation.title || "Source") + "</span>" + (citation.url ? "<a href="" + escapeHtml(citation.url) + "" target="_blank" rel="noopener noreferrer" class="citation-link"><i class="fa-solid fa-external-link-alt"></i></a>" : "");
+    container.appendChild(citeEl);
+  }
+
+  if (citation.content) {
+    citeEl.setAttribute("data-content", escapeHtml(citation.content));
+  }
+}
+
+
+/**
+ * Show || update an artifact inside an assistant message node.
+ * Artifacts are rendered as separate content blocks (e.g., files, images, code).
+ */
+function showArtifactInNode(node, artifact) {
+  let container = node.querySelector(".msg-artifacts");
+  if (!container) {
+    container = document.createElement("div");
+    container.className = "msg-artifacts";
+    const body = node.querySelector(".msg-body");
+    const ref = body.querySelector(".msg-actions");
+    if (ref) {
+      body.insertBefore(container, ref);
+    } else {
+      body.appendChild(container);
+    }
+  }
+
+  let artifactEl = container.querySelector("[data-artifact-id="" + artifact.id + ""]");
+  if (!artifactEl) {
+    artifactEl = document.createElement("div");
+    artifactEl.className = "artifact";
+    artifactEl.dataset.artifactId = artifact.id;
+    artifactEl.innerHTML = "<div class="artifact-header"><span class="artifact-type"><i class="fa-solid fa-file-code"></i> " + escapeHtml(artifact.type || "artifact") + "</span><span class="artifact-title">" + escapeHtml(artifact.title || "Untitled") + "</span></div><div class="artifact-content"></div>";
+    container.appendChild(artifactEl);
+  }
+
+  const contentEl = artifactEl.querySelector(".artifact-content");
+  if (contentEl && artifact.content !== undefined) {
+    if (artifact.mime?.startsWith("text/") || artifact.type === "code") {
+      contentEl.innerHTML = "<pre><code>" + escapeHtml(artifact.content) + "</code></pre>";
+      import("../../shared/markdown.js").then(mod => { mod.enhanceCodeBlocks(contentEl); }).catch(() => {});
+    } else if (artifact.mime?.startsWith("image/")) { 
+      contentEl.innerHTML = "<img src=\"" + escapeHtml(artifact.content) + "\" alt=\"" + escapeHtml(artifact.title) + "\" loading=\"lazy\">";
+    else {
+      contentEl.textContent = artifact.content;
+  }
 }
 
 /**
@@ -171,12 +304,14 @@ export function buildMessageNode(msg) {
     const node = document.createElement('div');
     node.className = 'msg user';
     node.dataset.id = msg.id || '';
+    node.setAttribute('role', 'article');
+    node.setAttribute('aria-label', `Your message, ${formatTime(msg.created_at)}`);
     node.innerHTML = `
-      <div class="msg-avatar"><i class="fa-solid fa-user"></i></div>
+      <div class="msg-avatar" aria-hidden="true"><i class="fa-solid fa-user" aria-hidden="true"></i></div>
       <div class="msg-body">
         <div class="msg-meta"><span class="msg-author">You</span><span class="msg-time">${formatTime(msg.created_at)}</span></div>
-        <div class="msg-content">${escapeHtml(msg.content)}</div>
-        <div class="msg-edit-btn" title="Edit message"><i class="fa-regular fa-pen-to-square"></i> Edit</div>
+        <div class="msg-content" aria-live="polite">${escapeHtml(msg.content)}</div>
+        <div class="msg-edit-btn" title="Edit message"><i class="fa-regular fa-pen-to-square" aria-hidden="true"></i> Edit</div>
       </div>`;
 
     var editBtn = node.querySelector(".msg-edit-btn");
@@ -232,31 +367,70 @@ export function buildMessageNode(msg) {
 
   // Assistant message
   const node = document.createElement('div');
-  node.className = 'msg assistant';
+   node.className = 'msg assistant';
   node.dataset.id = msg.id || '';
+  // ARIA: mark as article for assistive tech, with role="log" for live content
+  node.setAttribute('role', 'article');
+  node.setAttribute('aria-label', `Message from ${escapeHtml(model?.name || msg.model || 'Assistant')}, ${formatTime(msg.created_at)}`);
 
   const model = getSelectedModel();
   const info = getProviderInfo(model);
   node.style.setProperty('--provider-color', info.color);
 
+    
+  // Render tool calls if present
+  let toolCallsHtml = "";
+  if (msg.tool_calls && msg.tool_calls.length > 0) {
+    toolCallsHtml = "<div class="msg-tool-calls">" + 
+      msg.tool_calls.map(tc => "<details open><summary><i class="fa-solid fa-wrench"></i> " + escapeHtml(tc.name) + " <span class="tool-call-status"> ✓</span></summary><div class="tool-call-args"><pre><code>" + escapeHtml(tc.arguments || "") + "</code></pre></div><div class="tool-call-result" style="display:block;"><pre><code>" + escapeHtml(tc.result || "") + "</code></pre></div></details>").join("") + 
+      "</div>";
+  }
+
+  // Render citations if present
+  let citationsHtml = "";
+  if (msg.citations && msg.citations.length > 0) {
+    citationsHtml = "<div class="msg-citations">" + 
+      msg.citations.map((c, idx) => "<div class="citation-item" data-citation-index="" + (idx + 1) + ""><span class="citation-badge">[" + (idx + 1) + "]</span><span class="citation-title">" + escapeHtml(c.title || "Source") + "</span>" + (c.url ? "<a href="" + escapeHtml(c.url) + "" target="_blank" rel="noopener noreferrer" class="citation-link"><i class="fa-solid fa-external-link-alt"></i></a>" : "") + "</div>").join("") + 
+      "</div>";
+  }
+
+  // Render artifacts if present
+  let artifactsHtml = "";
+  if (msg.artifacts && msg.artifacts.length > 0) {
+    artifactsHtml = "<div class="msg-artifacts">" + 
+      msg.artifacts.map(a => {
+      let contentHtml = "";
+      if (a.mime?.startsWith("text/") || a.type === "code") {
+        contentHtml = "<pre><code>" + escapeHtml(a.content || "") + "</code></pre>";
+      } else if (a.mime?.startsWith("image/")) {
+        contentHtml = "<img src="" + escapeHtml(a.content || "") + "" alt="" + escapeHtml(a.title || "") + "" loading="lazy">";
+      } else {
+        contentHtml = escapeHtml(a.content || "");
+      }
+      return "<div class="artifact"><div class="artifact-header"><span class="artifact-type"><i class="fa-solid fa-file-code"></i> " + escapeHtml(a.type || "artifact") + "</span><span class="artifact-title">" + escapeHtml(a.title || "Untitled") + "</span></div><div class="artifact-content">" + contentHtml + "</div></div>";
+      }).join("") + 
+      "</div>";
+  }
+
   node.innerHTML = `
     <div class="msg-body">
       <div class="msg-meta">
-        <span class="msg-author">${escapeHtml(model?.name || msg.model || 'Assistant')}</span>
+        <span class="msg-author">${escapeHtml(model?.name || msg.model || "Assistant")}</span>
         <span class="msg-provider-tag" style="color:${info.color}">${escapeHtml(info.label)}</span>
         <span class="msg-time">${formatTime(msg.created_at)}</span>
-        ${msg.response_time != null ? `<span class="msg-response-time">${msg.response_time.toFixed(1)}s</span>` : ''}
+        ${msg.response_time != null ? `<span class="msg-response-time">${msg.response_time.toFixed(1)}s</span>` : ""}
       </div>
-      <div class="msg-content">${msg.content ? renderMarkdown(msg.content) : ''}</div>
-      <div class="msg-actions always-visible">
-        <button class="msg-action-btn copy-msg-btn"><i class="fa-regular fa-copy"></i> Copy</button>
-        <button class="msg-action-btn regenerate-btn"><i class="fa-solid fa-arrow-rotate-right"></i> Regenerate</button>
-        <button class="msg-action-btn"><i class="fa-regular fa-thumbs-up"></i></button>
-        <button class="msg-action-btn"><i class="fa-regular fa-thumbs-down"></i></button>
+      <article class="assistant-response" aria-live="polite">${msg.content ? renderMarkdown(msg.content) : ""}</article>
+      ${toolCallsHtml}
+      ${citationsHtml}
+      ${artifactsHtml}
+      <div class="msg-actions always-visible" role="group" aria-label="Message actions">
+        <button class="msg-action-btn copy-msg-btn" aria-label="Copy message"><i class="fa-regular fa-copy" aria-hidden="true"></i> Copy</button>
+        <button class="msg-action-btn regenerate-btn" aria-label="Regenerate response"><i class="fa-solid fa-arrow-rotate-right" aria-hidden="true"></i> Regenerate</button>
+        <button class="msg-action-btn" aria-label="Thumbs up"><i class="fa-regular fa-thumbs-up" aria-hidden="true"></i></button>
+        <button class="msg-action-btn" aria-label="Thumbs down"><i class="fa-regular fa-thumbs-down" aria-hidden="true"></i></button>
       </div>
-    </div>`;
-
-  // Copy button
+    </div>`; // Copy button
   const copyBtn = node.querySelector('.copy-msg-btn');
   copyBtn.addEventListener('click', () => {
     navigator.clipboard.writeText(msg.content || '').then(() => {
@@ -526,6 +700,8 @@ export async function runGeneration({ content, fileIds, regenerate }) {
 
   setIsGenerating(true);
   setSendButtonState(true);
+  // Clear streaming markdown cache for new generation
+  clearStreamCache();
   // Yield so the stop-button generating state paints before stream I/O begins
   await new Promise((r) => setTimeout(r, 0));
 
@@ -539,11 +715,14 @@ export async function runGeneration({ content, fileIds, regenerate }) {
   // Initial assistant message node with CONNECTING phase
   const typingNode = document.createElement('div');
   typingNode.className = 'msg assistant';
+  typingNode.setAttribute('role', 'article');
+  typingNode.setAttribute('aria-label', `Response from ${escapeHtml(model.name)}, generating`);
   typingNode.style.setProperty('--provider-color', info.color);
   typingNode.innerHTML = `
-    <div class="msg-avatar" style="color:${info.color}"><i class="fa-solid fa-sparkles"></i></div>
+    <div class="msg-avatar" style="color:${info.color}" aria-hidden="true"><i class="fa-solid fa-sparkles" aria-hidden="true"></i></div>
     <div class="msg-body">
       <div class="msg-meta"><span class="msg-author">${escapeHtml(model.name)}</span><span class="msg-provider-tag" style="color:${info.color}">${escapeHtml(info.label)}</span></div>
+      <article class="assistant-response" aria-live="polite" aria-busy="true"><div class="typing-indicator" aria-label="Generating response"><span aria-hidden="true"></span><span aria-hidden="true"></span><span aria-hidden="true"></span></div></article>
     </div>`;
   elements.messages?.appendChild(typingNode);
   scrollToBottom(true);
@@ -583,20 +762,153 @@ export async function runGeneration({ content, fileIds, regenerate }) {
   };
 
   let collected = '';
-  let reasoningContent = '';
-  let sawFirstToken = false;
-  let hasStartedWriting = false;
-  let newChatId = null;
-  let streamError = null;
-  let aborted = false;
-  let streamStarted = false;
-
-  try {
+ let reasoningContent = '';
+ let sawFirstToken = false;
+ let hasStartedWriting = false;
+ let newChatId = null;
+ let streamError = null;
+ let responseMessageId = null;
+ let responseRequestId = null; // Request correlation ID (Phase 2)
+ let aborted = false;
+ let streamStarted = false;
+  // Phase 4: Track tool calls, citations, artifacts for message persistence
+  let toolCalls = [];
+  let citations = [];
+  let artifacts = [];
+ 
+ try {
     const stream = await streamChatCompletion(body, controller.signal);
     streamStarted = true;
 
     // PHASE: Thinking — stream connected, waiting for first token
     setThinkingPhase(typingNode, 'thinking');
+
+    const responseController = createResponseController({
+      messageStart: (event) => {
+        responseMessageId = event.message_id || null;
+        // Capture request_id for correlation (Phase 2)
+        if (event.request_id) {
+          responseRequestId = event.request_id;
+        }
+      },
+      textDelta: (text) => {
+        if (!sawFirstToken) {
+          sawFirstToken = true;
+          const metaEl = typingNode.querySelector('.msg-meta');
+          if (metaEl) metaEl.insertAdjacentHTML('beforeend', `<span class="msg-time">${nowTime()}</span>`);
+          const indicator = typingNode.querySelector('.typing-indicator');
+          if (indicator) indicator.outerHTML = '';
+          // Remove aria-busy when first token arrives
+          const responseEl = typingNode.querySelector('.assistant-response');
+          if (responseEl) responseEl.removeAttribute('aria-busy');
+        }
+
+        // PHASE: Writing — first visible content token arrived
+        if (!hasStartedWriting) {
+          hasStartedWriting = true;
+          setThinkingPhase(typingNode, 'writing');
+        }
+
+        collected += text;
+        const responseEl = typingNode.querySelector('.assistant-response');
+        if (responseEl) {
+          // Use streaming markdown renderer for visually stable incremental updates
+          responseEl.innerHTML = renderMarkdownStream(collected) + '<span class="stream-cursor"></span>';
+        }
+        scrollToBottomIfNearBottom();
+      },
+      reasoningDelta: (text) => {
+        reasoningContent += text;
+        showReasoningInNode(typingNode, reasoningContent);
+      },
+      toolStart: (event) => {
+        const toolId = event.metadata?.tool_id;
+        const toolName = event.content || 'tool';
+        showToolCallInNode(typingNode, {
+          id: toolId,
+          name: toolName,
+          arguments: '',
+          status: 'starting'
+        });
+        // Track for message persistence
+        toolCalls.push({ id: toolId, name: toolName, arguments: '', status: 'starting' });
+      },
+      toolInputDelta: ({ toolId, content }) => {
+        const toolEl = typingNode.querySelector(`[data-tool-id="${toolId}"]`);
+        if (toolEl) {
+          const argsEl = toolEl.querySelector('.tool-call-args code');
+          if (argsEl) argsEl.textContent += content;
+        }
+        // Update tracked tool call arguments
+        const tc = toolCalls.find(t => t.id === toolId);
+        if (tc) tc.arguments += content;
+      },
+      toolEnd: (event) => {
+        // Status will be updated when tool_result arrives
+      },
+      toolResult: (event) => {
+        const toolId = event.metadata?.tool_id;
+        showToolCallInNode(typingNode, {
+          id: toolId,
+          result: event.content,
+          status: 'completed'
+        });
+        // Update tracked tool call with result
+        const tc = toolCalls.find(t => t.id === toolId);
+        if (tc) {
+          tc.result = event.content;
+          tc.status = 'completed';
+        }
+      },
+      citation: (event) => {
+        const citation = event.metadata?.citation || JSON.parse(event.content);
+        showCitationInNode(typingNode, citation);
+        // Track for message persistence
+        citations.push(citation);
+      },
+      artifactStart: (event) => {
+        const artifact = event.metadata?.artifact || JSON.parse(event.content);
+        showArtifactInNode(typingNode, artifact);
+       // Track for message persistence
+       artifacts.push(artifact);
+     },
+     artifactEnd: (event) => {
+       // Finalize artifact if needed
+     },
+
+     artifactDelta: (event) => {
+       const artifact = event.metadata?.artifact || JSON.parse(event.content);
+       if (artifact.id && artifact.content !== undefined) {
+          const artifactEl = typingNode.querySelector(`[data-artifact-id="${artifact.id}"]`);
+          if (artifactEl) {
+            const contentEl = artifactEl.querySelector('.artifact-content');
+            if (contentEl) {
+              if (artifact.mime?.startsWith('text/') || artifact.type === 'code') {
+                contentEl.innerHTML = '<pre><code>' + escapeHtml(artifact.content) + '</code></pre>';
+                import('../../shared/markdown.js').then(mod => { mod.enhanceCodeBlocks(contentEl); }).catch(() => {});
+              } else if (artifact.mime?.startsWith('image/')) {
+                contentEl.innerHTML = '<img src="' + escapeHtml(artifact.content) + '" alt="' + escapeHtml(artifact.title) + '" loading="lazy">';
+              } else {
+                contentEl.textContent = artifact.content;
+              }
+            }
+          }
+        }
+        const idx = artifacts.findIndex(a => a.id === artifact.id);
+        if (idx >= 0) artifacts[idx] = artifact;
+      },
+      error: (err) => {
+        streamError = err || { category: 'unknown', message: 'Provider request failed' };
+      },
+      unknown: (event) => {
+        if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
+          console.debug('Ignoring unsupported response_event:', event.type, event);
+        }
+      },
+      warning: (message) => {
+        if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') console.warn(message);
+      },
+    });
 
     for await (const { event, data } of parseSSE(stream)) {
       if (event === 'error') {
@@ -607,43 +919,23 @@ export async function runGeneration({ content, fileIds, regenerate }) {
         newChatId = data;
         continue;
       }
-      if (event === 'reasoning') {
-        reasoningContent += data;
-        showReasoningInNode(typingNode, reasoningContent);
-        continue;
-      }
-      if (data === '[DONE]') continue;
-
-      if (!sawFirstToken) {
-        sawFirstToken = true;
-        const metaEl = typingNode.querySelector('.msg-meta');
-        if (metaEl) metaEl.insertAdjacentHTML('beforeend', `<span class="msg-time">${nowTime()}</span>`);
-        const indicator = typingNode.querySelector('.typing-indicator');
-        if (indicator) indicator.outerHTML = '<div class="msg-content"><span class="stream-cursor"></span></div>';
-      }
-
-      // PHASE: Writing — first visible content token arrived
-      if (!hasStartedWriting) {
-        hasStartedWriting = true;
-        setThinkingPhase(typingNode, 'writing');
-      }
-
-      collected += data;
-      const contentEl = typingNode.querySelector('.msg-content');
-      if (contentEl) {
-        // Use streaming markdown renderer for visually stable incremental updates
-        contentEl.innerHTML = renderMarkdownStream(collected) + '<span class="stream-cursor"></span>';
-      }
-      scrollToBottomIfNearBottom();
+      responseController.handleSSE({ event, data });
+    }
+    if (responseController.sawCanonical && !responseController.terminal) {
+      streamError = {
+        category: 'stream_error',
+        message: 'The provider response ended before a terminal event was received.',
+        retryable: true,
+      };
     }
   } catch (err) {
     if (err.name === 'AbortError') {
       streamError = null;
       aborted = true;
     } else if (err instanceof ApiError) {
-      streamError = err.message;
+      streamError = { category: 'network_error', message: err.message, retryable: true };
     } else {
-      streamError = err.message;
+      streamError = { category: 'unknown', message: err.message, retryable: false };
     }
   }
 
@@ -655,21 +947,23 @@ export async function runGeneration({ content, fileIds, regenerate }) {
       const modelName = model.name || 'Unknown model';
       elements.errorState.querySelector('strong').textContent = `${providerLabel} — ${modelName} returned an error`;
 
-      let guidance = streamError;
-      const errLow = streamError.toLowerCase();
-      if (errLow.includes('not available') || errLow.includes('model not found') || errLow.includes('does not exist') || errLow.includes('subscription')) {
+      const streamErrorMessage = streamError.message || String(streamError);
+      let guidance = streamErrorMessage;
+      const errLow = streamErrorMessage.toLowerCase();
+      const errorCategory = streamError.category || 'unknown';
+      if (errorCategory === 'model_not_found' || errLow.includes('not available') || errLow.includes('model not found') || errLow.includes('does not exist') || errLow.includes('subscription')) {
         guidance = `The model "${modelName}" is not available on ${providerLabel}. It may require a different subscription or have been deprecated. Try selecting a different model.`;
-      } else if (errLow.includes('invalid') || errLow.includes('expired') || errLow.includes('authentication') || errLow.includes('unauthorized') || errLow.includes('401') || errLow.includes('no api key')) {
+      } else if (errorCategory === 'authentication_error' || errLow.includes('invalid') || errLow.includes('expired') || errLow.includes('authentication') || errLow.includes('unauthorized') || errLow.includes('401') || errLow.includes('no api key')) {
         guidance = `Your API key for ${providerLabel} appears to be invalid or missing. Open Settings → add or update your ${providerLabel} key.`;
-      } else if (errLow.includes('rate') || errLow.includes('429') || errLow.includes('quota')) {
+      } else if (['rate_limit', 'quota_exceeded'].includes(errorCategory) || errLow.includes('rate') || errLow.includes('429') || errLow.includes('quota')) {
         guidance = `${providerLabel} rate limit or quota exceeded. Wait a moment and retry, or check your ${providerLabel} plan for usage limits.`;
-      } else if (errLow.includes('timeout') || errLow.includes('timed out')) {
+      } else if (errorCategory === 'timeout' || errLow.includes('timeout') || errLow.includes('timed out')) {
         guidance = `${providerLabel} took too long to respond. Try a smaller model or reduce the max tokens setting.`;
-      } else if (errLow.includes('context') || errLow.includes('length') || errLow.includes('token')) {
+      } else if (errorCategory === 'context_length' || errLow.includes('context') || errLow.includes('length') || errLow.includes('token')) {
         guidance = `The conversation is too long for ${modelName}. Start a new chat or reduce the message history.`;
       }
       elements.errorState.querySelector('p').textContent = guidance;
-      elements.errorState.querySelector('.error-detail').textContent = streamError;
+      elements.errorState.querySelector('.error-detail').textContent = streamErrorMessage;
 
       // Add settings link in error
       const btnWrapper = elements.errorState.querySelector('.error-btns');
@@ -688,9 +982,33 @@ export async function runGeneration({ content, fileIds, regenerate }) {
         // handled by models module
       }
     } else if (aborted) {
-      // Aborted (Stop pressed or chat switched): never persist a partial reply
-      typingNode.remove();
-      showToast({ type: 'info', title: 'Generation stopped' });
+      // Aborted (Stop pressed or chat switched): preserve partial response if content was generated
+      if (collected && sawFirstToken) {
+        // Save chat ID on success
+        if (newChatId && !getActiveChatId()) {
+          setActiveChatId(newChatId);
+        }
+        // Reload chat list
+        const sidebarModule = await import('../sidebar/sidebar.js');
+        sidebarModule.loadChatList();
+        const elapsedMs = Date.now() - genStartedAt;
+        const elapsedSec = (elapsedMs / 1000).toFixed(1);
+        const finalMsg = { id: responseMessageId, role: 'assistant', content: collected, model: model.id, created_at: new Date().toISOString(), response_time: parseFloat(elapsedSec), tool_calls: toolCalls, citations: citations, artifacts: artifacts };
+        setMessages([...getMessages(), finalMsg]);
+        // PHASE: Done — show completion time briefly, then replace with final message
+        setThinkingPhase(typingNode, 'done', elapsedSec);
+        // Small delay so "Done — Xs" is visible before replace
+        await new Promise((r) => setTimeout(r, 600));
+        const finalNode = buildMessageNode(finalMsg);
+        typingNode.replaceWith(finalNode);
+        // Final render pass: ensure complete markdown with syntax highlighting
+        await finalizeMarkdownRender(finalNode, collected);
+        showToast({ type: 'info', title: 'Generation stopped — partial response saved' });
+      } else {
+        // No content generated, just remove the typing indicator
+        typingNode.remove();
+        showToast({ type: 'info', title: 'Generation stopped' });
+      }
     } else if (collected) {
       // Save chat ID on success
       if (newChatId && !getActiveChatId()) {
@@ -701,7 +1019,7 @@ export async function runGeneration({ content, fileIds, regenerate }) {
       sidebarModule.loadChatList();
       const elapsedMs = Date.now() - genStartedAt;
       const elapsedSec = (elapsedMs / 1000).toFixed(1);
-      const finalMsg = { role: 'assistant', content: collected, model: model.id, created_at: new Date().toISOString(), response_time: parseFloat(elapsedSec) };
+      const finalMsg = { id: responseMessageId, role: 'assistant', content: collected, model: model.id, created_at: new Date().toISOString(), response_time: parseFloat(elapsedSec), tool_calls: toolCalls, citations: citations, artifacts: artifacts };
       setMessages([...getMessages(), finalMsg]);
       // PHASE: Done — show completion time briefly, then replace with final message
       setThinkingPhase(typingNode, 'done', elapsedSec);

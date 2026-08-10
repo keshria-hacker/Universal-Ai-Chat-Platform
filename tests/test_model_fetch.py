@@ -572,7 +572,7 @@ class ModelDiscoveryLoggingTests(unittest.TestCase):
 
         with (
             _make_client(handler),
-            patch("providers.model_discovery.logger") as mock_logger,
+            patch("backend.providers.model_discovery.logger") as mock_logger,
         ):
             models = asyncio.run(llm.fetch_models_from_provider(
                 api_key="sk-test",
@@ -591,13 +591,13 @@ class ModelDiscoveryLoggingTests(unittest.TestCase):
         def handler(url, **kw):
             raise httpx.ConnectError("connection refused")
 
-        from providers.model_discovery import fetch_ollama_models
+        from backend.providers.model_discovery import fetch_ollama_models
 
         with (
             _make_client(handler),
-            patch("providers.ollama._try_start_ollama", new_callable=AsyncMock),
+            patch("backend.providers.ollama._try_start_ollama", new_callable=AsyncMock),
             patch("asyncio.sleep", new_callable=AsyncMock),
-            patch("providers.model_discovery.logger") as mock_logger,
+            patch("backend.providers.model_discovery.logger") as mock_logger,
         ):
             models = asyncio.run(fetch_ollama_models(
                 base_url="http://127.0.0.1:11434"

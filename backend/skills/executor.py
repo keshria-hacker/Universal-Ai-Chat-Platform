@@ -10,10 +10,10 @@ import time
 from dataclasses import dataclass
 from typing import Any
 
-import llm
-from database import AsyncSessionLocal
+from backend import llm
+from backend.database import AsyncSessionLocal
 from pydantic import BaseModel, ValidationError, create_model
-from skills.registry import SkillDefinition, get_registry
+from backend.skills.registry import SkillDefinition, get_registry
 from tenacity import (
     AsyncRetrying,
     retry_if_exception_type,
