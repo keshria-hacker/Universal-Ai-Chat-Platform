@@ -373,15 +373,14 @@ export function buildMessageNode(msg) {
   }
 
   // Assistant message
+  const model = getSelectedModel();
+  const info = getProviderInfo(model);
   const node = document.createElement('div');
-   node.className = 'msg assistant';
+  node.className = 'msg assistant';
   node.dataset.id = msg.id || '';
   // ARIA: mark as article for assistive tech, with role="log" for live content
   node.setAttribute('role', 'article');
   node.setAttribute('aria-label', `Message from ${escapeHtml(model?.name || msg.model || 'Assistant')}, ${formatTime(msg.created_at)}`);
-
-  const model = getSelectedModel();
-  const info = getProviderInfo(model);
   node.style.setProperty('--provider-color', info.color);
 
     
@@ -1042,7 +1041,7 @@ export async function runGeneration({ content, fileIds, regenerate }) {
       showToast({ type: 'info', title: 'Generation stopped' });
     }
   } catch (_err) {
-    showToast({ type: 'error', title: 'Unexpected error', message: _err.message });
+    showToast({ type: 'error', title: 'Unexpected error', message: _err?.message || String(_err) });
   }
 
   setIsGenerating(false);

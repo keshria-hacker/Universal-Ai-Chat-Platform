@@ -671,7 +671,7 @@ export async function finalizeMarkdownRender(messageNode, markdown) {
     // but we keep this for future async enhancements)
     await enhanceCodeBlocks(responseEl);
   } catch (e) {
-    console.warn('Final markdown render error:', e);
+    console.error('Final markdown render error:', e);
     // Leave existing content on error
   }
 }
