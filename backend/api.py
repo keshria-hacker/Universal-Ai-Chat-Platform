@@ -21,6 +21,7 @@ from backend.models import Chat, Message, ProviderKey, UploadedFile
 from backend.rag import TOP_K as RAG_TOP_K
 from backend.rag import index_document, retrieve_relevant_chunks
 from backend.response_events import ResponseEvent, ResponseEventBuilder, ResponseEventType, normalize_error
+from backend.response_intelligence import analyze_request, build_system_prompt_additions, config as ri_config
 from backend.schemas import (
     ChatDetailOut,
     ChatOut,
@@ -464,6 +465,31 @@ async def chat_stream(  # noqa: PLR0912
     if web_context and messages:
         # Inject as a system message so the model sees the sources.
         messages.insert(0, {"role": "system", "content": web_context})
+
+    # --- Phase 6: Response Intelligence ---
+    # Analyze request and inject guidance as system prompt additions.
+    # This runs BEFORE streaming starts, so it doesn't affect the event pipeline.
+    if ri_config.ENABLED:
+        try:
+            guidance = await analyze_request(
+                messages=messages,
+                model_id=payload.model,
+                temperature=payload.temperature,
+                chat_id=payload.chat_id,
+                db=db,  # Use outer request-scoped db for history lookup
+            )
+            system_additions = build_system_prompt_additions(guidance)
+            if system_additions:
+                system_content = "\n\n".join(system_additions)
+                # Find insertion point: after any existing system messages
+                insert_idx = 0
+                for i, msg in enumerate(messages):
+                    if msg.get("role") == "system":
+                        insert_idx = i + 1
+                messages.insert(insert_idx, {"role": "system", "content": system_content})
+                logger.debug("Injected %d response intelligence guidance additions", len(system_additions))
+        except Exception as exc:  # noqa: BLE001 — never break chat for guidance errors
+            logger.warning("Response intelligence analysis failed: %s", exc)
 
     # 3. Stream the assistant's reply, persisting user + assistant messages atomically
     #    inside the generator so a client disconnect or stream error never leaves
