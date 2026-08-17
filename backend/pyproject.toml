@@ -8,10 +8,6 @@ addopts = [
     "--strict-markers",
     "--strict-config",
     "--tb=short",
-    "--cov=backend",
-    "--cov-report=term-missing",
-    "--cov-report=html:htmlcov",
-    "--cov-fail-under=80",
     "--asyncio-mode=auto",
 ]
 

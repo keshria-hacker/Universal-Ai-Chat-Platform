@@ -2,8 +2,8 @@ import sys
 from logging.config import fileConfig
 from pathlib import Path
 
-# Add the backend directory to sys.path so we can import from config, database, models
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+# Add the project root directory to sys.path so we can import backend.*
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from alembic import context
 from sqlalchemy import pool
@@ -20,8 +20,8 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 # Import our models and Base for autogenerate support
-import models  # noqa: F401 - import to register models with Base.metadata
-from database import Base
+import backend.models  # noqa: F401 - import to register models with Base.metadata
+from backend.database import Base
 
 target_metadata = Base.metadata
 
