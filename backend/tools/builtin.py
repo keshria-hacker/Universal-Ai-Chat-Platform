@@ -65,6 +65,10 @@ web_search_tool = ToolDefinition(
     },
     handler=web_search_handler,
     capabilities=["web_access"],
+    category="web",
+    safety_level="safe",
+    read_only=True,
+    requires_confirmation=False,
 )
 
 
@@ -106,6 +110,10 @@ read_file_tool = ToolDefinition(
     },
     handler=read_file_handler,
     capabilities=["file_access"],
+    category="file",
+    safety_level="safe",
+    read_only=True,
+    requires_confirmation=False,
 )
 
 
@@ -148,6 +156,10 @@ list_files_tool = ToolDefinition(
     },
     handler=list_files_handler,
     capabilities=["file_access"],
+    category="file",
+    safety_level="safe",
+    read_only=True,
+    requires_confirmation=False,
 )
 
 
@@ -207,6 +219,10 @@ execute_code_tool = ToolDefinition(
     },
     handler=execute_code_handler,
     capabilities=["code_execution"],
+    category="code",
+    safety_level="caution",
+    read_only=False,
+    requires_confirmation=False,
 )
 
 

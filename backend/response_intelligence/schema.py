@@ -69,6 +69,10 @@ class IntentSignal(BaseModel):
     # 16. Urgency / brevity
     urgency: str = "normal"  # "low", "normal", "high"
 
+    # Phase 7: Capability signals (optional hints for orchestration)
+    capability_hint: str = "none"  # "none", "tool", "file", "web"
+    tool_need: str = "none"  # "none", "possible", "likely"
+
     model_config = ConfigDict(use_enum_values=True)
 
 

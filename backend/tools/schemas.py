@@ -15,6 +15,11 @@ class ToolDefinition(BaseModel):
     parameters: dict[str, Any]
     handler: Callable[..., Any] | None = Field(default=None, exclude=True)
     capabilities: list[str] = Field(default_factory=list)
+    # Phase 7: Capability metadata (optional, defaults to safe values)
+    safety_level: str = "safe"  # "safe", "caution", "destructive"
+    read_only: bool = True
+    category: str = "general"  # "web", "file", "code", "general"
+    requires_confirmation: bool = False
 
 
 class ToolCall(BaseModel):

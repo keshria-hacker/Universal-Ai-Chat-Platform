@@ -404,6 +404,10 @@ def detect_intent_signals(
     if any(t in msg_lower for t in config.URGENCY_TRIGGERS):
         signals.urgency = "high"
 
+    # Phase 7: Capability hints
+    signals.capability_hint = _detect_capability_hint(msg_lower, signals)
+    signals.tool_need = _detect_tool_need(msg_lower, signals)
+
     return signals
 
 
@@ -621,3 +625,39 @@ def _apply_constraints(guidance: ResponseGuidance) -> None:
 
     if intent.needs_citations:
         guidance.constraints["cite_sources"] = True
+
+
+def _detect_capability_hint(msg_lower: str, signals: IntentSignal) -> str:
+    """Detect high-level capability hint from message and signals."""
+    # Explicit file operations
+    if any(phrase in msg_lower for phrase in ["list files", "show files", "read file", "list the files", "show me the files"]):
+        return "file"
+    # Explicit web search
+    if any(phrase in msg_lower for phrase in ["search web", "web search", "google", "look up", "find information", "search for"]):
+        return "web"
+    # Explicit code execution
+    if any(phrase in msg_lower for phrase in ["execute code", "run code", "run this code", "execute this", "run python"]):
+        return "tool"
+    # File-related context
+    if any(word in msg_lower for word in ["file", "files", "directory", "folder", "project", "codebase", "repository", "repo"]):
+        # But only if not just explaining
+        if not signals.wants_direct_answer and not signals.technical_depth == "low":
+            return "file"
+    # Research context
+    if any(word in msg_lower for word in ["news", "latest", "current", "today", "recent", "up to date", "who won", "what happened"]):
+        return "web"
+    return "none"
+
+
+def _detect_tool_need(msg_lower: str, signals: IntentSignal) -> str:
+    """Detect tool need level from message and signals."""
+    # High confidence: explicit tool requests
+    if any(phrase in msg_lower for phrase in ["list files", "read file", "search web", "execute code", "run code"]):
+        return "likely"
+    # Medium: context suggests tool but not explicit
+    if signals.capability_hint != "none":
+        return "possible"
+    # Low: pure explanation/understanding
+    if signals.wants_direct_answer or signals.technical_depth == "low":
+        return "none"
+    return "none"
