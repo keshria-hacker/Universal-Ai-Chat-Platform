@@ -20,16 +20,22 @@ os.environ["MASTER_KEY"] = "7nQheyKjedj1oYnZhCq3PqxMRCl9E5rdteunHkQzGBQ="
 
 
 # Import the required classes
-from skills.registry import SkillCategory, InvocationType, SkillDefinition, SkillParameter, get_registry
+from backend.skills.registry import SkillCategory, InvocationType, SkillDefinition, SkillParameter, get_registry
+from backend.skills.executor import SkillExecutor, ExecutionResult, _build_validation_model
+import backend.skills.executor as skills_executor_module
 
 
 class BuildValidationModelTests(unittest.TestCase):
     """Tests for _build_validation_model function (lines 89-90)."""
 
+    def setUp(self):
+        # Reset global executor singleton
+        skills_executor_module._executor = None
+
     def test_unknown_param_type_defaults_to_str_with_warning(self):
         """Unknown param type logs warning and defaults to str (lines 89-90)."""
         import logging
-        from skills.executor import _build_validation_model
+        from backend.skills.executor import _build_validation_model
 
         # Capture log output
         with self.assertLogs(level=logging.WARNING) as cm:
@@ -61,8 +67,8 @@ class SkillExecutorValidationTests(unittest.TestCase):
     def setUp(self):
         """Set up executor with mocked registry."""
         # Get the existing registry and clear it
-        from skills.registry import get_registry
-        from skills.executor import SkillExecutor
+        from backend.skills.registry import get_registry
+        from backend.skills.executor import SkillExecutor
 
         self.registry = get_registry()
         self.registry.skills = {}
@@ -120,8 +126,8 @@ class SkillExecutorExecuteTests(unittest.TestCase):
     """Tests for SkillExecutor.execute method."""
 
     def setUp(self):
-        from skills.registry import get_registry
-        from skills.executor import SkillExecutor
+        from backend.skills.registry import get_registry
+        from backend.skills.executor import SkillExecutor
 
         self.registry = get_registry()
         self.registry.skills = {}
@@ -165,8 +171,8 @@ class SkillExecutorExecuteTests(unittest.TestCase):
 
         asyncio.run(test())
 
-    @patch("skills.executor.SkillExecutor._build_prompt_with_deps", return_value="test prompt")
-    @patch("skills.executor.SkillExecutor._execute_with_retry")
+    @patch("backend.skills.executor.SkillExecutor._build_prompt_with_deps", return_value="test prompt")
+    @patch("backend.skills.executor.SkillExecutor._execute_with_retry")
     def test_execute_timeout_returns_error(self, mock_retry, mock_build_prompt):
         """Timeout returns structured error result (lines 221-229)."""
 
@@ -181,8 +187,8 @@ class SkillExecutorExecuteTests(unittest.TestCase):
 
         asyncio.run(test())
 
-    @patch("skills.executor.SkillExecutor._build_prompt_with_deps", return_value="test prompt")
-    @patch("skills.executor.SkillExecutor._execute_with_retry")
+    @patch("backend.skills.executor.SkillExecutor._build_prompt_with_deps", return_value="test prompt")
+    @patch("backend.skills.executor.SkillExecutor._execute_with_retry")
     def test_execute_generic_exception_categorized(self, mock_retry, mock_build_prompt):
         """Generic exception is categorized (lines 230-239)."""
 
@@ -199,8 +205,8 @@ class BuildPromptWithDepsTests(unittest.TestCase):
     """Tests for _build_prompt_with_deps (lines 199-200, 253-258)."""
 
     def setUp(self):
-        from skills.registry import get_registry
-        from skills.executor import SkillExecutor
+        from backend.skills.registry import get_registry
+        from backend.skills.executor import SkillExecutor
 
         self.registry = get_registry()
         self.registry.skills = {}
@@ -236,10 +242,10 @@ class BuildPromptWithDepsTests(unittest.TestCase):
 
         self.executor = SkillExecutor()
 
-    @patch("skills.executor.SkillExecutor.execute", new_callable=AsyncMock)
+    @patch("backend.skills.executor.SkillExecutor.execute", new_callable=AsyncMock)
     def test_build_prompt_with_deps_dependency_error_stored(self, mock_execute):
         """Dependency error is stored in context (lines 256-258)."""
-        from skills.executor import ExecutionResult
+        from backend.skills.executor import ExecutionResult
 
         # Dependency returns error
         mock_execute.return_value = ExecutionResult(
@@ -255,10 +261,10 @@ class BuildPromptWithDepsTests(unittest.TestCase):
 
         asyncio.run(test())
 
-    @patch("skills.executor.SkillExecutor.execute", new_callable=AsyncMock)
+    @patch("backend.skills.executor.SkillExecutor.execute", new_callable=AsyncMock)
     def test_build_prompt_with_deps_dependency_result_stored(self, mock_execute):
         """Dependency result is stored in context (lines 255-256)."""
-        from skills.executor import ExecutionResult
+        from backend.skills.executor import ExecutionResult
 
         mock_execute.return_value = ExecutionResult(
             skill_id="dep_skill",
@@ -272,7 +278,7 @@ class BuildPromptWithDepsTests(unittest.TestCase):
 
         asyncio.run(test())
 
-    @patch("skills.executor.SkillExecutor.execute", new_callable=AsyncMock)
+    @patch("backend.skills.executor.SkillExecutor.execute", new_callable=AsyncMock)
     def test_build_prompt_with_deps_validation_error_propagated(self, mock_execute):
         """Validation error from dependency execution is propagated (lines 199-200)."""
 
@@ -290,8 +296,8 @@ class ExecuteWithRetryTests(unittest.TestCase):
     """Tests for _execute_with_retry (lines 269, 302)."""
 
     def setUp(self):
-        from skills.registry import get_registry
-        from skills.executor import SkillExecutor
+        from backend.skills.registry import get_registry
+        from backend.skills.executor import SkillExecutor
 
         self.registry = get_registry()
         self.registry.skills = {}
@@ -316,11 +322,11 @@ class ExecuteWithRetryTests(unittest.TestCase):
         """No model available raises ValueError (line 269)."""
 
         async def test():
-            with patch("skills.executor.AsyncSessionLocal") as mock_session:
+            with patch("backend.skills.executor.AsyncSessionLocal") as mock_session:
                 mock_db = AsyncMock()
                 mock_session.return_value.__aenter__.return_value = mock_db
 
-                with patch("skills.executor.llm.default_model_id", new_callable=AsyncMock) as mock_default_model:
+                with patch("backend.skills.executor.llm.default_model_id", new_callable=AsyncMock) as mock_default_model:
                     mock_default_model.return_value = None  # No model
 
                     with self.assertRaises(ValueError) as ctx:
@@ -329,7 +335,7 @@ class ExecuteWithRetryTests(unittest.TestCase):
 
         asyncio.run(test())
 
-    @patch("skills.executor.AsyncSessionLocal")
+    @patch("backend.skills.executor.AsyncSessionLocal")
     def test_execute_with_retry_empty_response_raises(self, mock_session_class):
         """Empty response from model raises ValueError (line 302)."""
 
@@ -342,7 +348,7 @@ class ExecuteWithRetryTests(unittest.TestCase):
                 return
                 yield  # Make it an async generator
 
-            with patch("skills.executor.llm.default_model_id", new_callable=AsyncMock) as mock_default_model:
+            with patch("backend.skills.executor.llm.default_model_id", new_callable=AsyncMock) as mock_default_model:
                 mock_default_model.return_value = "test-model"
 
                 # Create an async generator that yields nothing
@@ -350,14 +356,14 @@ class ExecuteWithRetryTests(unittest.TestCase):
                     return
                     yield
 
-                with patch("skills.executor.llm.stream_completion", return_value=empty_agen()):
+                with patch("backend.skills.executor.llm.stream_completion", return_value=empty_agen()):
                     with self.assertRaises(ValueError) as ctx:
                         await self.executor._execute_with_retry("test prompt", self.test_skill)
                     self.assertIn("Model returned empty response", str(ctx.exception))
 
         asyncio.run(test())
 
-    @patch("skills.executor.AsyncSessionLocal")
+    @patch("backend.skills.executor.AsyncSessionLocal")
     def test_execute_with_retry_success(self, mock_session_class):
         """Successful execution returns content."""
 
@@ -370,12 +376,13 @@ class ExecuteWithRetryTests(unittest.TestCase):
                 for token in ["Hello", " world"]:
                     yield token
 
-            with patch("skills.executor.llm.default_model_id", new_callable=AsyncMock) as mock_default_model:
+            with patch("backend.skills.executor.llm.default_model_id", new_callable=AsyncMock) as mock_default_model:
                 mock_default_model.return_value = "test-model"
 
-                with patch("skills.executor.llm.stream_completion", return_value=mock_stream()):
-                    result = await self.executor._execute_with_retry("test prompt", self.test_skill)
+                with patch("backend.skills.executor.llm.stream_completion", return_value=mock_stream()):
+                    result, model_id = await self.executor._execute_with_retry("test prompt", self.test_skill)
                     self.assertEqual(result, "Hello world")
+                    self.assertEqual(model_id, "test-model")
 
         asyncio.run(test())
 
@@ -384,7 +391,7 @@ class CategorizeErrorTests(unittest.TestCase):
     """Tests for _categorize_error method."""
 
     def setUp(self):
-        from skills.executor import SkillExecutor
+        from backend.skills.executor import SkillExecutor
         self.executor = SkillExecutor()
 
     def test_categorize_timeout_error(self):
@@ -433,8 +440,8 @@ class ExecuteChainTests(unittest.TestCase):
     """Tests for execute_chain method."""
 
     def setUp(self):
-        from skills.registry import get_registry
-        from skills.executor import SkillExecutor
+        from backend.skills.registry import get_registry
+        from backend.skills.executor import SkillExecutor
 
         self.registry = get_registry()
         self.registry.skills = {}
@@ -464,7 +471,7 @@ class ExecuteChainTests(unittest.TestCase):
 
         self.executor = SkillExecutor()
 
-    @patch("skills.executor.SkillExecutor.execute")
+    @patch("backend.skills.executor.SkillExecutor.execute")
     def test_execute_chain_missing_skill_field(self, mock_execute):
         """Missing 'skill' in chain step returns error result (lines 344-348)."""
 
@@ -480,7 +487,7 @@ class ExecuteChainTests(unittest.TestCase):
 
         asyncio.run(test())
 
-    @patch("skills.executor.SkillExecutor.execute")
+    @patch("backend.skills.executor.SkillExecutor.execute")
     def test_execute_chain_success(self, mock_execute):
         """Successful chain execution passes context forward."""
 
@@ -489,7 +496,7 @@ class ExecuteChainTests(unittest.TestCase):
         def mock_execute_impl(skill_id, params, timeout):
             nonlocal call_count
             call_count += 1
-            from skills.executor import ExecutionResult
+            from backend.skills.executor import ExecutionResult
             return ExecutionResult(
                 skill_id=skill_id,
                 skill_name=skill_id,
@@ -516,8 +523,8 @@ class ExecuteSuccessfulPathTests(unittest.TestCase):
     """Tests for successful execution path (lines 213-214)."""
 
     def setUp(self):
-        from skills.registry import get_registry
-        from skills.executor import SkillExecutor
+        from backend.skills.registry import get_registry
+        from backend.skills.executor import SkillExecutor
 
         self.registry = get_registry()
         self.registry.skills = {}
@@ -540,7 +547,7 @@ class ExecuteSuccessfulPathTests(unittest.TestCase):
 
         self.executor = SkillExecutor()
 
-    @patch("skills.executor.AsyncSessionLocal")
+    @patch("backend.skills.executor.AsyncSessionLocal")
     def test_execute_successful_sets_duration_and_model_used(self, mock_session_class):
         """Successful execution sets duration_ms and model_used (lines 213-214)."""
 
@@ -552,15 +559,16 @@ class ExecuteSuccessfulPathTests(unittest.TestCase):
                 for token in ["Hello", " world"]:
                     yield token
 
-            with patch("skills.executor.llm.default_model_id", new_callable=AsyncMock) as mock_default_model:
+            with patch("backend.skills.executor.llm.default_model_id", new_callable=AsyncMock) as mock_default_model:
                 mock_default_model.return_value = "test-model"
 
-                with patch("skills.executor.llm.stream_completion", return_value=mock_stream()):
+                with patch("backend.skills.executor.llm.stream_completion", return_value=mock_stream()):
                     result = await self.executor.execute("test_skill", {"prompt": "test"})
 
             self.assertIsNotNone(result.result)
             self.assertEqual(result.result, "Hello world")
-            self.assertGreater(result.duration_ms, 0)
+            # Duration may be 0 on Windows due to time.monotonic() precision
+            self.assertGreaterEqual(result.duration_ms, 0)
             self.assertEqual(result.model_used, "test-model")
 
         asyncio.run(test())
@@ -570,8 +578,8 @@ class ExecuteValueErrorFromDepsTests(unittest.TestCase):
     """Tests for ValueError from _build_prompt_with_deps in execute (lines 199-200)."""
 
     def setUp(self):
-        from skills.registry import get_registry
-        from skills.executor import SkillExecutor
+        from backend.skills.registry import get_registry
+        from backend.skills.executor import SkillExecutor
 
         self.registry = get_registry()
         self.registry.skills = {}
@@ -592,7 +600,7 @@ class ExecuteValueErrorFromDepsTests(unittest.TestCase):
 
         self.executor = SkillExecutor()
 
-    @patch("skills.executor.SkillExecutor._build_prompt_with_deps", new_callable=AsyncMock)
+    @patch("backend.skills.executor.SkillExecutor._build_prompt_with_deps", new_callable=AsyncMock)
     def test_execute_value_error_from_deps_returns_error_result(self, mock_build_prompt):
         """ValueError from _build_prompt_with_deps returns error result (lines 199-200)."""
 
@@ -611,8 +619,8 @@ class ExecuteChainErrorContextTests(unittest.TestCase):
     """Tests for execute_chain error context storage (line 357)."""
 
     def setUp(self):
-        from skills.registry import get_registry
-        from skills.executor import SkillExecutor
+        from backend.skills.registry import get_registry
+        from backend.skills.executor import SkillExecutor
 
         self.registry = get_registry()
         self.registry.skills = {}
@@ -631,10 +639,10 @@ class ExecuteChainErrorContextTests(unittest.TestCase):
 
         self.executor = SkillExecutor()
 
-    @patch("skills.executor.SkillExecutor.execute")
+    @patch("backend.skills.executor.SkillExecutor.execute")
     def test_execute_chain_error_stored_in_context(self, mock_execute):
         """Error from skill execution is stored in context (line 357)."""
-        from skills.executor import ExecutionResult
+        from backend.skills.executor import ExecutionResult
 
         mock_execute.return_value = ExecutionResult(
             skill_id="skill1",
@@ -660,11 +668,11 @@ class GetExecutorTests(unittest.TestCase):
 
     def test_get_executor_returns_singleton(self):
         """get_executor returns the same instance on multiple calls."""
-        from skills.executor import get_executor, SkillExecutor
+        from backend.skills.executor import get_executor, SkillExecutor
 
         # Reset global
-        import skills.executor
-        skills.executor._executor = None
+        import backend.skills.executor as skills_executor
+        skills_executor._executor = None
 
         executor1 = get_executor()
         executor2 = get_executor()
@@ -674,10 +682,10 @@ class GetExecutorTests(unittest.TestCase):
 
     def test_get_executor_creates_new_if_none(self):
         """get_executor creates new executor if global is None."""
-        from skills.executor import get_executor, SkillExecutor
+        from backend.skills.executor import get_executor, SkillExecutor
 
-        import skills.executor
-        skills.executor._executor = None
+        import backend.skills.executor as skills_executor
+        skills_executor._executor = None
 
         executor = get_executor()
         self.assertIsNotNone(executor)

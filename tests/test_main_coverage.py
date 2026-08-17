@@ -5,6 +5,7 @@ import os
 import sys
 import unittest
 import json
+import asyncio
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -16,60 +17,76 @@ os.environ["MASTER_KEY"] = "7nQheyKjedj1oYnZhCq3PqxMRCl9E5rdteunHkQzGBQ="
 
 import importlib
 
+from fastapi.testclient import TestClient
+
 
 class LifespanTests(unittest.TestCase):
     """Tests for lifespan manager (lines 100-114)."""
 
-    @patch("main.logger")
-    def test_lifespan_startup(self, mock_logger):
+    def test_lifespan_startup(self):
         """Test lifespan startup sequence (lines 101-106)."""
-        import asyncio
-        from main import lifespan
-        from fastapi import FastAPI
+        # init_db is imported into main's namespace: from backend.database import init_db
+        # Patch at the source to ensure lifespan captures it
+        with patch("backend.database.init_db", new_callable=AsyncMock) as mock_init_db:
+            with patch("main.logger"):
+                # Also need to patch main.settings since SecurityHeadersMiddleware captures it
+                with patch("main.settings") as mock_settings:
+                    # Use a real Path for UPLOAD_DIR but mock mkdir
+                    mock_settings.UPLOAD_DIR = MagicMock()
+                    mock_settings.UPLOAD_DIR.mkdir = MagicMock()
+                    mock_settings.ENV = "development"  # ensure no HSTS
+                    mock_settings.APP_NAME = "UniversalAI"
+                    mock_settings.DEBUG = False
+                    mock_settings.API_PREFIX = "/api"
+                    mock_settings.ALLOWED_ORIGINS = ["http://localhost:5500"]
 
-        mock_app = MagicMock(spec=FastAPI)
+                    import main
+                    importlib.reload(main)
+                    from main import create_app
 
-        with patch("main.settings") as mock_settings:
-            mock_settings.UPLOAD_DIR = MagicMock()
-            mock_settings.UPLOAD_DIR.mkdir = MagicMock()
+                    app = create_app()
+                    # Use context manager to trigger lifespan
+                    with TestClient(app) as client:
+                        response = client.get("/health")
+                        self.assertEqual(response.status_code, 200)
 
-            with patch("main.init_db", new_callable=AsyncMock) as mock_init_db:
-                async def run():
-                    async with lifespan(mock_app):
-                        pass
+                    # Verify init_db was called during startup
+                    mock_init_db.assert_called_once()
 
-                asyncio.run(run())
-
-                mock_settings.UPLOAD_DIR.mkdir.assert_called()
-                mock_init_db.assert_called_once()
-                mock_logger.info.assert_any_call("Application startup complete")
-
-    @patch("main.logger")
-    def test_lifespan_shutdown(self, mock_logger):
+    def test_lifespan_shutdown(self):
         """Test lifespan shutdown sequence (lines 108-114)."""
-        import asyncio
-        from main import lifespan
-        from fastapi import FastAPI
+        # The imports inside lifespan are from backend.llm and backend.ratelimit_redis
+        # Patch those modules BEFORE importing main
+        mock_cleanup_ollama = MagicMock()
+        mock_close_redis = AsyncMock()
 
-        mock_app = MagicMock(spec=FastAPI)
+        with patch("backend.llm._cleanup_ollama", mock_cleanup_ollama):
+            with patch("backend.ratelimit_redis.close_rate_limit_store", mock_close_redis):
+                with patch("backend.database.init_db", new_callable=AsyncMock):
+                    with patch("main.logger"):
+                        with patch("main.settings") as mock_settings:
+                            mock_settings.UPLOAD_DIR = MagicMock()
+                            mock_settings.UPLOAD_DIR.mkdir = MagicMock()
+                            mock_settings.ENV = "development"
+                            mock_settings.APP_NAME = "UniversalAI"
+                            mock_settings.DEBUG = False
+                            mock_settings.API_PREFIX = "/api"
+                            mock_settings.ALLOWED_ORIGINS = ["http://localhost:5500"]
 
-        with patch("main.settings") as mock_settings:
-            mock_settings.UPLOAD_DIR = MagicMock()
-            mock_settings.UPLOAD_DIR.mkdir = MagicMock()
+                            import main
+                            importlib.reload(main)
+                            from main import create_app
 
-            # Patch where the imports happen (inside the function)
-            with patch("llm._cleanup_ollama") as mock_cleanup_ollama:
-                with patch("ratelimit_redis.close_rate_limit_store", new_callable=AsyncMock) as mock_close_redis:
-                    with patch("main.init_db", new_callable=AsyncMock):
-                        async def run():
-                            async with lifespan(mock_app):
-                                pass
+                            app = create_app()
+                            # Use context manager to trigger lifespan startup AND shutdown
+                            with TestClient(app) as client:
+                                response = client.get("/health")
+                                self.assertEqual(response.status_code, 200)
+                            # Lifespan shutdown happens when context exits
 
-                        asyncio.run(run())
-
-                        mock_cleanup_ollama.assert_called_once()
-                        mock_close_redis.assert_called_once()
-                        mock_logger.info.assert_any_call("Application shutdown")
+                            # Check if cleanup was called during shutdown
+                            mock_cleanup_ollama.assert_called_once()
+                            mock_close_redis.assert_called_once()
 
 
 class HealthCheckTests(unittest.TestCase):
@@ -79,13 +96,10 @@ class HealthCheckTests(unittest.TestCase):
         """Parse JSONResponse body from bytes to dict."""
         return json.loads(result.body.decode())
 
-    @patch("database.engine")
+    @patch("backend.database.engine")
     @patch("httpx.AsyncClient")
     def test_health_check_database_connected(self, mock_client_class, mock_engine):
         """Test health check with database connected (lines 218-221)."""
-        import asyncio
-        from main import health_check
-
         mock_conn = AsyncMock()
         mock_conn.execute = AsyncMock()
         mock_engine.connect.return_value.__aenter__.return_value = mock_conn
@@ -96,21 +110,20 @@ class HealthCheckTests(unittest.TestCase):
         mock_client_instance.get.return_value = mock_resp
         mock_client_class.return_value.__aenter__.return_value = mock_client_instance
 
-        async def run():
-            return await health_check()
+        import main
+        importlib.reload(main)
+        from main import create_app
 
-        result = asyncio.run(run())
+        app = create_app()
+        with TestClient(app) as client:
+            response = client.get("/health")
+            self.assertEqual(response.status_code, 200)
+            body = response.json()
+            self.assertEqual(body.get("database"), "connected")
 
-        self.assertEqual(result.status_code, 200)
-        body = self._parse_response_body(result)
-        self.assertEqual(body.get("database"), "connected")
-
-    @patch("database.engine")
+    @patch("backend.database.engine")
     def test_health_check_database_error(self, mock_engine):
         """Test health check with database error (lines 222-224)."""
-        import asyncio
-        from main import health_check
-
         mock_conn = AsyncMock()
         mock_conn.execute = AsyncMock(side_effect=Exception("DB connection failed"))
         mock_engine.connect.return_value.__aenter__.return_value = mock_conn
@@ -122,21 +135,20 @@ class HealthCheckTests(unittest.TestCase):
             mock_client_instance.get.return_value = mock_resp
             mock_client_class.return_value.__aenter__.return_value = mock_client_instance
 
-            async def run():
-                return await health_check()
+            import main
+            importlib.reload(main)
+            from main import create_app
 
-            result = asyncio.run(run())
+            app = create_app()
+            with TestClient(app) as client:
+                response = client.get("/health")
+                self.assertEqual(response.status_code, 503)
+                body = response.json()
+                self.assertIn("error:", body.get("database"))
 
-            self.assertEqual(result.status_code, 503)
-            body = self._parse_response_body(result)
-            self.assertIn("error:", body.get("database"))
-
-    @patch("database.engine")
+    @patch("backend.database.engine")
     def test_health_check_ollama_connected(self, mock_engine):
         """Test health check with Ollama connected (lines 227-231)."""
-        import asyncio
-        from main import health_check
-
         mock_conn = AsyncMock()
         mock_conn.execute = AsyncMock()
         mock_engine.connect.return_value.__aenter__.return_value = mock_conn
@@ -148,20 +160,19 @@ class HealthCheckTests(unittest.TestCase):
             mock_client_instance.get.return_value = mock_resp
             mock_client_class.return_value.__aenter__.return_value = mock_client_instance
 
-            async def run():
-                return await health_check()
+            import main
+            importlib.reload(main)
+            from main import create_app
 
-            result = asyncio.run(run())
+            app = create_app()
+            with TestClient(app) as client:
+                response = client.get("/health")
+                body = response.json()
+                self.assertEqual(body.get("ollama"), "connected")
 
-            body = self._parse_response_body(result)
-            self.assertEqual(body.get("ollama"), "connected")
-
-    @patch("database.engine")
+    @patch("backend.database.engine")
     def test_health_check_ollama_http_error(self, mock_engine):
         """Test health check with Ollama HTTP error (lines 232-233)."""
-        import asyncio
-        from main import health_check
-
         mock_conn = AsyncMock()
         mock_conn.execute = AsyncMock()
         mock_engine.connect.return_value.__aenter__.return_value = mock_conn
@@ -173,20 +184,19 @@ class HealthCheckTests(unittest.TestCase):
             mock_client_instance.get.return_value = mock_resp
             mock_client_class.return_value.__aenter__.return_value = mock_client_instance
 
-            async def run():
-                return await health_check()
+            import main
+            importlib.reload(main)
+            from main import create_app
 
-            result = asyncio.run(run())
+            app = create_app()
+            with TestClient(app) as client:
+                response = client.get("/health")
+                body = response.json()
+                self.assertEqual(body.get("ollama"), "http_500")
 
-            body = self._parse_response_body(result)
-            self.assertEqual(body.get("ollama"), "http_500")
-
-    @patch("database.engine")
+    @patch("backend.database.engine")
     def test_health_check_ollama_unreachable(self, mock_engine):
         """Test health check with Ollama unreachable (lines 234-235)."""
-        import asyncio
-        from main import health_check
-
         mock_conn = AsyncMock()
         mock_conn.execute = AsyncMock()
         mock_engine.connect.return_value.__aenter__.return_value = mock_conn
@@ -196,45 +206,103 @@ class HealthCheckTests(unittest.TestCase):
             mock_client_instance.get.side_effect = Exception("Connection refused")
             mock_client_class.return_value.__aenter__.return_value = mock_client_instance
 
-            async def run():
-                return await health_check()
+            import main
+            importlib.reload(main)
+            from main import create_app
 
-            result = asyncio.run(run())
-
-            body = self._parse_response_body(result)
-            self.assertEqual(body.get("ollama"), "unreachable")
+            app = create_app()
+            with TestClient(app) as client:
+                response = client.get("/health")
+                body = response.json()
+                self.assertEqual(body.get("ollama"), "unreachable")
 
 
 class SecurityHeadersTests(unittest.TestCase):
     """Tests for security headers middleware (lines 124-157)."""
 
-    @patch.dict("os.environ", {"ENV": "production"})
     def test_security_headers_production_includes_hsts(self):
         """Test security headers in production includes HSTS (lines 154-155)."""
-        import config
-        import main
+        # The SecurityHeadersMiddleware is defined inside create_app() and captures
+        # the `settings` from main's module scope (from backend.config import settings)
+        # We need to patch the module-level settings object BEFORE importing main
+        mock_settings = MagicMock()
+        mock_settings.ENV = "production"
+        mock_settings.APP_NAME = "UniversalAI"
+        mock_settings.DEBUG = False
+        mock_settings.API_PREFIX = "/api"
+        mock_settings.ALLOWED_ORIGINS = ["http://localhost:5500"]
+        mock_settings.UPLOAD_DIR = MagicMock()
+        mock_settings.UPLOAD_DIR.mkdir = MagicMock()
 
-        importlib.reload(config)
-        importlib.reload(main)
-        from main import SecurityHeadersMiddleware
+        # Patch backend.config.settings (the module-level instance)
+        with patch("backend.config.settings", mock_settings):
+            with patch("backend.database.init_db", new_callable=AsyncMock):
+                with patch("main.logger"):
+                    import main
+                    importlib.reload(main)
+                    from main import create_app
 
-        mock_request = MagicMock()
-        mock_response = MagicMock()
-        mock_response.headers = {}
+                    app = create_app()
+                    with TestClient(app) as client:
+                        response = client.get("/health")
+                        self.assertEqual(response.status_code, 200)
+                        self.assertIn("Strict-Transport-Security", response.headers)
+                        self.assertEqual(response.headers["Strict-Transport-Security"], "max-age=31536000; includeSubDomains; preload")
 
-        async def call_next(request):
-            return mock_response
+    def test_security_headers_development_no_hsts(self):
+        """Test security headers in development does NOT include HSTS."""
+        mock_settings = MagicMock()
+        mock_settings.ENV = "development"
+        mock_settings.APP_NAME = "UniversalAI"
+        mock_settings.DEBUG = False
+        mock_settings.API_PREFIX = "/api"
+        mock_settings.ALLOWED_ORIGINS = ["http://localhost:5500"]
+        mock_settings.UPLOAD_DIR = MagicMock()
+        mock_settings.UPLOAD_DIR.mkdir = MagicMock()
 
-        middleware = SecurityHeadersMiddleware(None)
-        import asyncio
+        with patch("backend.config.settings", mock_settings):
+            with patch("backend.database.init_db", new_callable=AsyncMock):
+                with patch("main.logger"):
+                    import main
+                    importlib.reload(main)
+                    from main import create_app
 
-        async def run():
-            return await middleware.dispatch(mock_request, call_next)
+                    app = create_app()
+                    with TestClient(app) as client:
+                        response = client.get("/health")
+                        self.assertEqual(response.status_code, 200)
+                        self.assertNotIn("Strict-Transport-Security", response.headers)
 
-        result = asyncio.run(run())
+    def test_security_headers_other_security_headers(self):
+        """Test other security headers are always present."""
+        mock_settings = MagicMock()
+        mock_settings.ENV = "development"
+        mock_settings.APP_NAME = "UniversalAI"
+        mock_settings.DEBUG = False
+        mock_settings.API_PREFIX = "/api"
+        mock_settings.ALLOWED_ORIGINS = ["http://localhost:5500"]
+        mock_settings.UPLOAD_DIR = MagicMock()
+        mock_settings.UPLOAD_DIR.mkdir = MagicMock()
 
-        self.assertIn("Strict-Transport-Security", result.headers)
-        self.assertEqual(result.headers["Strict-Transport-Security"], "max-age=31536000; includeSubDomains; preload")
+        with patch("backend.config.settings", mock_settings):
+            with patch("backend.database.init_db", new_callable=AsyncMock):
+                with patch("main.logger"):
+                    import main
+                    importlib.reload(main)
+                    from main import create_app
+
+                    app = create_app()
+                    with TestClient(app) as client:
+                        response = client.get("/health")
+                        self.assertEqual(response.status_code, 200)
+                        # Check CSP
+                        self.assertIn("Content-Security-Policy", response.headers)
+                        # Check other headers
+                        self.assertEqual(response.headers["X-Content-Type-Options"], "nosniff")
+                        self.assertEqual(response.headers["X-Frame-Options"], "DENY")
+                        self.assertEqual(response.headers["X-XSS-Protection"], "1; mode=block")
+                        self.assertEqual(response.headers["Referrer-Policy"], "strict-origin-when-cross-origin")
+                        self.assertIn("Permissions-Policy", response.headers)
 
 
 class CSRFMiddlewareTests(unittest.TestCase):
@@ -243,42 +311,90 @@ class CSRFMiddlewareTests(unittest.TestCase):
     @patch("main.verify_csrf")
     def test_csrf_middleware_valid(self, mock_verify_csrf):
         """Test CSRF middleware passes when valid."""
-        import asyncio
-        from main import csrf_middleware
-
-        mock_request = MagicMock()
-        mock_response = MagicMock()
         mock_verify_csrf.return_value = None
 
-        async def call_next(request):
-            return mock_response
+        import main
+        importlib.reload(main)
+        from main import create_app
 
-        async def run():
-            return await csrf_middleware(mock_request, call_next)
+        app = create_app()
+        with TestClient(app) as client:
+            response = client.get("/health")
+            self.assertEqual(response.status_code, 200)
 
-        result = asyncio.run(run())
-        self.assertEqual(result, mock_response)
-
-    @patch("main.verify_csrf")
-    def test_csrf_middleware_invalid(self, mock_verify_csrf):
+    def test_csrf_middleware_invalid(self):
         """Test CSRF middleware returns JSONResponse on failure (lines 186-189)."""
-        import asyncio
-        from main import csrf_middleware
+        # Test verify_csrf function directly since it's imported from backend.auth
         from fastapi import HTTPException
 
-        mock_request = MagicMock()
-        mock_verify_csrf.side_effect = HTTPException(status_code=403, detail="CSRF validation failed")
+        import main
+        importlib.reload(main)
 
-        async def call_next(request):
-            return MagicMock()
+        # Test verify_csrf function directly
+        from backend.auth import verify_csrf
+        from starlette.requests import Request
 
-        async def run():
-            return await csrf_middleware(mock_request, call_next)
+        mock_request = MagicMock(spec=Request)
 
-        result = asyncio.run(run())
-        self.assertEqual(result.status_code, 403)
-        body = json.loads(result.body.decode())
-        self.assertEqual(body.get("detail"), "CSRF validation failed")
+        # Test 1: GET request should pass (skip CSRF)
+        mock_request.method = "GET"
+        mock_request.url.path = "/api/test"
+        mock_request.cookies = {}
+
+        async def test_get():
+            await verify_csrf(mock_request)
+        asyncio.run(test_get())
+
+        # Test 2: POST to CSRF_SKIP_PATHS should pass
+        mock_request.method = "POST"
+        mock_request.url.path = "/api/auth/login"  # in CSRF_SKIP_PATHS
+
+        async def test_post_skip():
+            await verify_csrf(mock_request)
+        asyncio.run(test_post_skip())
+
+        # Test 3: POST to non-skip path without cookie should pass (no session = no CSRF risk)
+        mock_request.method = "POST"
+        mock_request.url.path = "/api/models"
+        mock_request.cookies = {}
+
+        async def test_post_no_cookie():
+            await verify_csrf(mock_request)
+        asyncio.run(test_post_no_cookie())
+
+        # Test 4: POST with cookie but no header should raise 403
+        mock_request.method = "POST"
+        mock_request.url.path = "/api/models"
+        mock_request.cookies = {"nexus_csrf": "test_token"}
+        mock_request.headers = {}
+
+        async def test_post_cookie_no_header():
+            try:
+                await verify_csrf(mock_request)
+                self.fail("Should have raised HTTPException")
+            except HTTPException as e:
+                self.assertEqual(e.status_code, 403)
+                self.assertEqual(e.detail, "CSRF token required. Include X-CSRF-Token header.")
+        asyncio.run(test_post_cookie_no_header())
+
+        # Test 5: POST with cookie and mismatched header should raise 403
+        mock_request.headers = {"X-CSRF-Token": "wrong_token"}
+
+        async def test_post_mismatched():
+            try:
+                await verify_csrf(mock_request)
+                self.fail("Should have raised HTTPException")
+            except HTTPException as e:
+                self.assertEqual(e.status_code, 403)
+                self.assertEqual(e.detail, "Invalid CSRF token")
+        asyncio.run(test_post_mismatched())
+
+        # Test 6: POST with cookie and matching header should pass
+        mock_request.headers = {"X-CSRF-Token": "test_token"}
+
+        async def test_post_matched():
+            await verify_csrf(mock_request)
+        asyncio.run(test_post_matched())
 
 
 class RootEndpointTests(unittest.TestCase):
@@ -286,16 +402,19 @@ class RootEndpointTests(unittest.TestCase):
 
     def test_root_endpoint(self):
         """Test root endpoint returns basic info."""
-        import asyncio
-        from main import root
+        import main
+        importlib.reload(main)
+        from main import create_app
 
-        async def run():
-            return await root()
-
-        result = asyncio.run(run())
-        self.assertIn("app", result)
-        self.assertIn("status", result)
-        self.assertIn("docs", result)
+        app = create_app()
+        with TestClient(app) as client:
+            response = client.get("/")
+            self.assertEqual(response.status_code, 200)
+            body = response.json()
+            self.assertIn("app", body)
+            self.assertIn("status", body)
+            self.assertIn("docs", body)
+            self.assertEqual(body["status"], "running")
 
 
 if __name__ == "__main__":

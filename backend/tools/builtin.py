@@ -22,8 +22,8 @@ async def web_search_handler(query: str, max_results: int = 5) -> dict[str, Any]
     try:
         import httpx
         from bs4 import BeautifulSoup
-    except ImportError:
-        return {"error": "httpx and beautifulsoup4 required for web search"}
+    except ImportError as e:
+        return {"error": f"httpx and beautifulsoup4 required for web search: {str(e)}"}
     
     url = "https://html.duckduckgo.com/html/"
     params = {"q": query}

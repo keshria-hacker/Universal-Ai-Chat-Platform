@@ -475,12 +475,13 @@ async def stream_response_events(
     collected_reasoning = ""
     tool_round = 0
     current_messages = messages
+    received_terminal = False
     while tool_round < MAX_TOOL_ROUNDS:
         tools = None
         if model_info and model_info.capabilities and model_info.capabilities.tools:
             enabled_tools = tool_registry.get_enabled()
             if enabled_tools:
-                from tools.schemas import tool_definition_to_openai_function
+                from backend.tools.schemas import tool_definition_to_openai_function
                 tools = [tool_definition_to_openai_function(t) for t in enabled_tools]
         provider_stream = provider.stream_completion(
             model_id=litellm_id,
@@ -493,51 +494,66 @@ async def stream_response_events(
         )
         accumulated_tool_calls = {}
         chunk = None
-        async for chunk in provider_stream:
-            if chunk.text:
-                collected_text += chunk.text
-                for e in builder.text_delta(chunk.text): yield e
-            if chunk.reasoning:
-                collected_reasoning += chunk.reasoning
-                for e in builder.reasoning_delta(chunk.reasoning): yield e
-            if chunk.tool_calls:
-                for tc in chunk.tool_calls:
-                    idx_tc = tc.get("index", 0)
-                    if idx_tc not in accumulated_tool_calls:
-                        accumulated_tool_calls[idx_tc] = {
-                            "id": tc.get("id"),
-                            "type": tc.get("type", "function"),
-                            "function": {
-                                "name": tc.get("function", {}).get("name"),
-                                "arguments": tc.get("function", {}).get("arguments", ""),
-                            },
-                        }
-                    else:
-                        accumulated_tool_calls[idx_tc]["function"]["arguments"] += tc.get("function", {}).get("arguments", "")
-            if chunk.citations:
-                for citation in chunk.citations:
-                    yield builder.event(ResponseEventType.CITATION, content=citation.get("text", ""), metadata=citation)
-            if chunk.artifacts:
-                for artifact in chunk.artifacts:
-                    yield builder.event(ResponseEventType.ARTIFACT_START, content=artifact.get("content", ""), metadata=artifact)
-                    if artifact.get("delta"):
-                        yield builder.event(ResponseEventType.ARTIFACT_DELTA, content=artifact.get("delta"), metadata=artifact)
-                    yield builder.event(ResponseEventType.ARTIFACT_END, content=artifact.get("content", ""), metadata=artifact)
-            if chunk.tool_results:
-                for tool_result in chunk.tool_results:
-                    yield builder.event(ResponseEventType.TOOL_RESULT, content=tool_result.get("content", ""), metadata={"tool_call_id": tool_result.get("tool_call_id"), "name": tool_result.get("name"), "error": tool_result.get("error"), "is_error": tool_result.get("is_error", False)})
-            if chunk.finish_reason:
-                if chunk.finish_reason == FinishReason.TOOL:
-                    break
-                elif chunk.finish_reason in (FinishReason.STOP, FinishReason.LENGTH, FinishReason.CANCELLED, FinishReason.CONTENT_FILTER, FinishReason.ERROR):
-                    if builder._text_open:
-                        yield builder.text_end()
-                    if builder._reasoning_open:
-                        yield builder.reasoning_end()
-                    if chunk.usage:
-                        yield builder.usage(chunk.usage)
-                    yield builder.message_end(chunk.finish_reason)
-                    return
+        try:
+            async for chunk in provider_stream:
+                if chunk.text:
+                    collected_text += chunk.text
+                    for e in builder.text_delta(chunk.text): yield e
+                if chunk.reasoning:
+                    collected_reasoning += chunk.reasoning
+                    for e in builder.reasoning_delta(chunk.reasoning): yield e
+                if chunk.tool_calls:
+                    for tc in chunk.tool_calls:
+                        idx_tc = tc.get("index", 0)
+                        # Handle both string (OpenAI streaming) and dict (Ollama) arguments
+                        raw_args = tc.get("function", {}).get("arguments", {})
+                        if isinstance(raw_args, dict):
+                            import json as _json
+                            raw_args = _json.dumps(raw_args)
+                        if idx_tc not in accumulated_tool_calls:
+                            accumulated_tool_calls[idx_tc] = {
+                                "id": tc.get("id"),
+                                "type": tc.get("type", "function"),
+                                "function": {
+                                    "name": tc.get("function", {}).get("name"),
+                                    "arguments": raw_args,
+                                },
+                            }
+                        else:
+                            accumulated_tool_calls[idx_tc]["function"]["arguments"] += raw_args
+                if chunk.citations:
+                    for citation in chunk.citations:
+                        yield builder.event(ResponseEventType.CITATION, content=citation.get("text", ""), metadata=citation)
+                if chunk.artifacts:
+                    for artifact in chunk.artifacts:
+                        yield builder.event(ResponseEventType.ARTIFACT_START, content=artifact.get("content", ""), metadata=artifact)
+                        if artifact.get("delta"):
+                            yield builder.event(ResponseEventType.ARTIFACT_DELTA, content=artifact.get("delta"), metadata=artifact)
+                        yield builder.event(ResponseEventType.ARTIFACT_END, content=artifact.get("content", ""), metadata=artifact)
+                if chunk.tool_results:
+                    for tool_result in chunk.tool_results:
+                        yield builder.event(ResponseEventType.TOOL_RESULT, content=tool_result.get("content", ""), metadata={"tool_call_id": tool_result.get("tool_call_id"), "name": tool_result.get("name"), "error": tool_result.get("error"), "is_error": tool_result.get("is_error", False)})
+                if chunk.finish_reason:
+                    received_terminal = True
+                    if chunk.finish_reason == FinishReason.TOOL:
+                        break
+                    elif chunk.finish_reason in (FinishReason.STOP, FinishReason.LENGTH, FinishReason.CANCELLED, FinishReason.CONTENT_FILTER, FinishReason.ERROR):
+                        if builder._text_open:
+                            yield builder.text_end()
+                        if builder._reasoning_open:
+                            yield builder.reasoning_end()
+                        if chunk.usage:
+                            yield builder.usage(chunk.usage)
+                        yield builder.message_end(chunk.finish_reason, metadata=chunk.metadata)
+                        return
+        except Exception as e:
+            # Stream error - emit ERROR event and end
+            if builder._text_open:
+                yield builder.text_end()
+            if builder._reasoning_open:
+                yield builder.reasoning_end()
+            yield builder.error(normalize_error(e, provider=provider_id, model=model_id))
+            return
         if accumulated_tool_calls:
             tool_calls_to_execute = []
             import json as _json
@@ -572,13 +588,16 @@ async def stream_response_events(
             yield builder.text_end()
         if builder._reasoning_open:
             yield builder.reasoning_end()
-        if chunk and chunk.finish_reason and chunk.finish_reason != FinishReason.TOOL:
-            if chunk.usage:
-                yield builder.usage(chunk.usage)
-            yield builder.message_end(chunk.finish_reason)
+        if not received_terminal:
+            # Stream ended without terminal chunk - this is a stream error
+            yield builder.error(normalize_error(
+                RuntimeError("Stream terminated without finish_reason"),
+                provider=provider_id,
+                model=model_id
+            ))
             return
         break
-    if tool_round >= MAX_TOOL_ROUNDS and builder._text_open:
+    if builder._text_open:
         yield builder.text_end()
     if builder._reasoning_open:
         yield builder.reasoning_end()

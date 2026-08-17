@@ -2,7 +2,7 @@ import os
 import sys
 import unittest
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
@@ -105,30 +105,72 @@ class NormalizationHelpersTests(unittest.TestCase):
 
 
 class ProviderEventFacadeTests(unittest.IsolatedAsyncioTestCase):
-    async def _collect_for_provider(self, provider_id: str):
-        async def fake_stream_completion(*args, **kwargs):
-            yield "Hello"
-            yield " world"
+    def _make_fake_provider(self, fake_stream_completion):
+        """Create a fake provider class with the given stream_completion method."""
+        from backend.providers.base import ProviderStreamChunk
 
-        with patch("backend.providers.stream_completion", fake_stream_completion):
-            with patch("backend.providers.resolve_api_key", return_value="test-key"):
-                with patch("backend.providers.list_models", return_value=[]):
+        class FakeProvider:
+            def __init__(self, config=None, api_key=None):
+                self.config = config
+                self._api_key = api_key
+
+            @property
+            def api_key(self):
+                return self._api_key
+
+            async def stream_completion(self, *args, **kwargs):
+                async for chunk in fake_stream_completion(*args, **kwargs):
+                    if isinstance(chunk, str):
+                        yield ProviderStreamChunk(text=chunk)
+                    elif isinstance(chunk, ProviderStreamChunk):
+                        yield chunk
+                    else:
+                        yield ProviderStreamChunk(text=str(chunk))
+
+        return FakeProvider
+
+    async def _collect_for_provider(self, provider_id: str, fake_stream_completion, message_id: str | None = None):
+        FakeProvider = self._make_fake_provider(fake_stream_completion)
+
+        import backend.providers as providers_module
+        from backend.providers.registry import registry
+
+        # Store original
+        original_get = registry.get_provider_class
+
+        try:
+            # Mock the registry to return our fake provider
+            registry.get_provider_class = lambda pid: FakeProvider
+
+            with patch.object(providers_module, "resolve_api_key", return_value="test-key"):
+                with patch.object(providers_module, "list_models", return_value=[]):
                     events = []
-                    async for event in providers.stream_response_events(
+                    async for event in providers_module.stream_response_events(
                         f"{provider_id}::{provider_id}/model",
                         [{"role": "user", "content": "hi"}],
                         MagicMock(),  # db mock - won't be used due to patch
+                        message_id=message_id,
                     ):
                         events.append(event)
-        return events
+            return events
+        finally:
+            registry.get_provider_class = original_get
 
     async def test_supported_provider_text_becomes_canonical_text_delta(self):
+        async def fake_stream_completion(*args, **kwargs):
+            yield "Hello"
+            yield " world"
+            # Send terminal chunk to indicate normal completion
+            from backend.providers.base import ProviderStreamChunk
+            from backend.response_events import FinishReason
+            yield ProviderStreamChunk(finish_reason=FinishReason.STOP, terminal=True)
+
         provider_ids = [
             "openai", "anthropic", "gemini", "nvidia", "together",
             "groq", "openrouter", "deepseek", "mistral", "ollama", "omniroute",
         ]
         for provider_id in provider_ids:
-            events = await self._collect_for_provider(provider_id)
+            events = await self._collect_for_provider(provider_id, fake_stream_completion)
             text = "".join(e.content or "" for e in events if e.type == ResponseEventType.TEXT_DELTA)
             self.assertEqual(text, "Hello world")
             self.assertEqual(events[0].type, ResponseEventType.MESSAGE_START)
@@ -140,16 +182,7 @@ class ProviderEventFacadeTests(unittest.IsolatedAsyncioTestCase):
             yield "partial"
             raise RuntimeError("malformed json chunk in stream")
 
-        with patch("backend.providers.stream_completion", broken_stream_completion):
-            with patch("backend.providers.resolve_api_key", return_value="test-key"):
-                with patch("backend.providers.list_models", return_value=[]):
-                    events = []
-                    async for event in providers.stream_response_events(
-                        "openai::openai/gpt-test",
-                        [{"role": "user", "content": "hi"}],
-                        MagicMock(),
-                    ):
-                        events.append(event)
+        events = await self._collect_for_provider("openai", broken_stream_completion)
         self.assertEqual(events[-1].type, ResponseEventType.ERROR)
         self.assertEqual(events[-1].error.category, ErrorCategory.STREAM_ERROR)
 
@@ -163,17 +196,7 @@ class ProviderEventFacadeTests(unittest.IsolatedAsyncioTestCase):
                 terminal=True,
             )
 
-        with patch("backend.providers.stream_completion", typed_stream_completion):
-            with patch("backend.providers.resolve_api_key", return_value="test-key"):
-                with patch("backend.providers.list_models", return_value=[]):
-                    events = []
-                    async for event in providers.stream_response_events(
-                    "openai::openai/gpt-test",
-                    [{"role": "user", "content": "hi"}],
-                    MagicMock(),
-                    message_id="assistant-1",
-                    ):
-                        events.append(event)
+        events = await self._collect_for_provider("openai", typed_stream_completion, message_id="assistant-1")
 
         self.assertEqual([event.sequence for event in events], list(range(len(events))))
         self.assertTrue(all(event.message_id == "assistant-1" for event in events))
@@ -187,16 +210,7 @@ class ProviderEventFacadeTests(unittest.IsolatedAsyncioTestCase):
         async def incomplete_stream_completion(*args, **kwargs):
             yield ProviderStreamChunk(text="partial")
 
-        with patch("backend.providers.stream_completion", incomplete_stream_completion):
-            with patch("backend.providers.resolve_api_key", return_value="test-key"):
-                with patch("backend.providers.list_models", return_value=[]):
-                    events = []
-                    async for event in providers.stream_response_events(
-                        "openai::openai/gpt-test",
-                        [{"role": "user", "content": "hi"}],
-                        MagicMock(),
-                    ):
-                        events.append(event)
+        events = await self._collect_for_provider("openai", incomplete_stream_completion)
 
         self.assertEqual(events[-1].type, ResponseEventType.ERROR)
         self.assertEqual(events[-1].error.category, ErrorCategory.STREAM_ERROR)

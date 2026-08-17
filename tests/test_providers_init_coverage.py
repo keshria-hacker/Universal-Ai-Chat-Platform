@@ -31,13 +31,13 @@ class ListModelsCoverageTests(unittest.TestCase):
 
         mock_db = AsyncMock()
 
-        with patch("providers.list_linked_providers", new_callable=AsyncMock) as mock_linked:
+        with patch("backend.providers.list_linked_providers", new_callable=AsyncMock) as mock_linked:
             mock_linked.return_value = ["openai"]
 
-            with patch("providers.resolve_api_key", new_callable=AsyncMock) as mock_resolve:
+            with patch("backend.providers.resolve_api_key", new_callable=AsyncMock) as mock_resolve:
                 mock_resolve.return_value = None  # No key available
 
-                with patch("providers.fetch_ollama_models", new_callable=AsyncMock) as mock_ollama:
+                with patch("backend.providers.fetch_ollama_models", new_callable=AsyncMock) as mock_ollama:
                     mock_ollama.return_value = []
 
                     async def test():
@@ -54,21 +54,21 @@ class ListModelsCoverageTests(unittest.TestCase):
 
         mock_db = AsyncMock()
 
-        with patch("providers.list_linked_providers", new_callable=AsyncMock) as mock_linked:
+        with patch("backend.providers.list_linked_providers", new_callable=AsyncMock) as mock_linked:
             mock_linked.return_value = ["openai"]
 
-            with patch("providers.resolve_api_key", new_callable=AsyncMock) as mock_resolve:
+            with patch("backend.providers.resolve_api_key", new_callable=AsyncMock) as mock_resolve:
                 mock_resolve.return_value = "test-key"
 
-                with patch("providers.fetch_ollama_models", new_callable=AsyncMock) as mock_ollama:
+                with patch("backend.providers.fetch_ollama_models", new_callable=AsyncMock) as mock_ollama:
                     mock_ollama.side_effect = Exception("Ollama connection failed")
 
-                    with patch("providers.registry.registry.get_config") as mock_get_config:
+                    with patch("backend.providers.registry.registry.get_config") as mock_get_config:
                         mock_config = MagicMock()
                         mock_config.model_endpoint = "https://api.openai.com/v1/models"
                         mock_get_config.return_value = mock_config
 
-                        with patch("providers.fetch_models_from_provider", new_callable=AsyncMock) as mock_fetch:
+                        with patch("backend.providers.fetch_models_from_provider", new_callable=AsyncMock) as mock_fetch:
                             mock_fetch.return_value = []
 
                             async def test():
@@ -85,17 +85,17 @@ class ListModelsCoverageTests(unittest.TestCase):
 
         mock_db = AsyncMock()
 
-        with patch("providers.list_linked_providers", new_callable=AsyncMock) as mock_linked:
+        with patch("backend.providers.list_linked_providers", new_callable=AsyncMock) as mock_linked:
             mock_linked.return_value = ["unknown_provider"]
 
-            with patch("providers.resolve_api_key", new_callable=AsyncMock) as mock_resolve:
+            with patch("backend.providers.resolve_api_key", new_callable=AsyncMock) as mock_resolve:
                 mock_resolve.return_value = "test-key"
 
                 # Patch registry.registry.get_config (the registry object has get_config)
-                with patch("providers.registry.registry.get_config") as mock_get_config:
+                with patch("backend.providers.registry.registry.get_config") as mock_get_config:
                     mock_get_config.return_value = None  # Unknown provider config
 
-                    with patch("providers.fetch_ollama_models", new_callable=AsyncMock) as mock_ollama:
+                    with patch("backend.providers.fetch_ollama_models", new_callable=AsyncMock) as mock_ollama:
                         mock_ollama.return_value = []
 
                         async def test():
@@ -111,21 +111,21 @@ class ListModelsCoverageTests(unittest.TestCase):
 
         mock_db = AsyncMock()
 
-        with patch("providers.list_linked_providers", new_callable=AsyncMock) as mock_linked:
+        with patch("backend.providers.list_linked_providers", new_callable=AsyncMock) as mock_linked:
             mock_linked.return_value = ["openai"]
 
-            with patch("providers.resolve_api_key", new_callable=AsyncMock) as mock_resolve:
+            with patch("backend.providers.resolve_api_key", new_callable=AsyncMock) as mock_resolve:
                 mock_resolve.return_value = "test-key"
 
-                with patch("providers.registry.registry.get_config") as mock_get_config:
+                with patch("backend.providers.registry.registry.get_config") as mock_get_config:
                     mock_config = MagicMock()
                     mock_config.model_endpoint = "https://api.openai.com/v1/models"
                     mock_get_config.return_value = mock_config
 
-                    with patch("providers.fetch_models_from_provider", new_callable=AsyncMock) as mock_fetch:
+                    with patch("backend.providers.fetch_models_from_provider", new_callable=AsyncMock) as mock_fetch:
                         mock_fetch.side_effect = Exception("Network error")
 
-                        with patch("providers.fetch_ollama_models", new_callable=AsyncMock) as mock_ollama:
+                        with patch("backend.providers.fetch_ollama_models", new_callable=AsyncMock) as mock_ollama:
                             mock_ollama.return_value = []
 
                             async def test():
@@ -142,13 +142,13 @@ class ListModelsCoverageTests(unittest.TestCase):
 
         mock_db = AsyncMock()
 
-        with patch("providers.list_linked_providers", new_callable=AsyncMock) as mock_linked:
+        with patch("backend.providers.list_linked_providers", new_callable=AsyncMock) as mock_linked:
             mock_linked.return_value = ["openai", "anthropic"]
 
-            with patch("providers.resolve_api_key", new_callable=AsyncMock) as mock_resolve:
+            with patch("backend.providers.resolve_api_key", new_callable=AsyncMock) as mock_resolve:
                 mock_resolve.return_value = "test-key"
 
-                with patch("providers.registry.registry.get_config") as mock_get_config:
+                with patch("backend.providers.registry.registry.get_config") as mock_get_config:
                     mock_config = MagicMock()
                     mock_config.model_endpoint = "https://api.openai.com/v1/models"
                     mock_get_config.return_value = mock_config
@@ -162,8 +162,8 @@ class ListModelsCoverageTests(unittest.TestCase):
                             raise Exception("First provider failed")
                         return []
 
-                    with patch("providers.fetch_models_from_provider", side_effect=mock_fetch_models):
-                        with patch("providers.fetch_ollama_models", new_callable=AsyncMock) as mock_ollama:
+                    with patch("backend.providers.fetch_models_from_provider", side_effect=mock_fetch_models):
+                        with patch("backend.providers.fetch_ollama_models", new_callable=AsyncMock) as mock_ollama:
                             mock_ollama.return_value = []
 
                             async def test():
@@ -356,18 +356,18 @@ class ListProviderStatusCoverageTests(unittest.TestCase):
 
         mock_db = AsyncMock()
 
-        with patch("providers.get_db_keys", new_callable=AsyncMock) as mock_db_keys:
+        with patch("backend.providers.get_db_keys", new_callable=AsyncMock) as mock_db_keys:
             mock_db_keys.return_value = {"openai": "test-key"}
 
-            with patch("providers.get_static_env_key") as mock_static_key:
+            with patch("backend.providers.get_static_env_key") as mock_static_key:
                 mock_static_key.return_value = None
 
                 # Patch model_discovery._ollama_reachable where it's imported in list_provider_status
-                with patch("providers.model_discovery._ollama_reachable", new_callable=AsyncMock) as mock_ollama:
+                with patch("backend.providers.model_discovery._ollama_reachable", new_callable=AsyncMock) as mock_ollama:
                     mock_ollama.return_value = False
 
                     # Patch _provider_reachable where it's used in list_provider_status
-                    with patch("providers._provider_reachable", new_callable=AsyncMock) as mock_reachable:
+                    with patch("backend.providers._provider_reachable", new_callable=AsyncMock) as mock_reachable:
                         mock_reachable.side_effect = Exception("Unexpected error")
 
                         async def test():
@@ -398,14 +398,14 @@ class StreamCompletionCoverageTests(unittest.TestCase):
             for chunk in ["fallback"]:
                 yield chunk
 
-        with patch("providers._resolve_model", return_value=("openai", "gpt-4")):
-            with patch("providers.resolve_api_key", new_callable=AsyncMock) as mock_resolve:
+        with patch("backend.providers._resolve_model", return_value=("openai", "gpt-4")):
+            with patch("backend.providers.resolve_api_key", new_callable=AsyncMock) as mock_resolve:
                 mock_resolve.return_value = "test-key"
 
-                with patch("providers.registry.registry.get_provider_class") as mock_get_class:
+                with patch("backend.providers.registry.registry.get_provider_class") as mock_get_class:
                     mock_get_class.return_value = None  # No custom class
 
-                    with patch("providers.registry.registry.get_config") as mock_get_config:
+                    with patch("backend.providers.registry.registry.get_config") as mock_get_config:
                         mock_config = MagicMock()
                         mock_config.provider_id = "openai"
                         mock_config.label = "OpenAI"
@@ -418,7 +418,7 @@ class StreamCompletionCoverageTests(unittest.TestCase):
                         mock_config.litellm_prefix = ""
                         mock_get_config.return_value = mock_config
 
-                        with patch("providers.litellm_fallback.LiteLLMProvider") as mock_litellm_class:
+                        with patch("backend.providers.litellm_fallback.LiteLLMProvider") as mock_litellm_class:
                             mock_provider = MagicMock()
                             mock_provider.stream_completion = mock_stream
                             mock_litellm_class.return_value = mock_provider
@@ -446,14 +446,14 @@ class StreamCompletionCoverageTests(unittest.TestCase):
         mock_provider_class = MagicMock()
         mock_provider_class.return_value.stream_completion = mock_stream
 
-        with patch("providers._resolve_model", return_value=("openai", "gpt-4")):
-            with patch("providers.resolve_api_key", new_callable=AsyncMock) as mock_resolve:
+        with patch("backend.providers._resolve_model", return_value=("openai", "gpt-4")):
+            with patch("backend.providers.resolve_api_key", new_callable=AsyncMock) as mock_resolve:
                 mock_resolve.return_value = "test-key"
 
-                with patch("providers.registry.registry.get_provider_class") as mock_get_class:
+                with patch("backend.providers.registry.registry.get_provider_class") as mock_get_class:
                     mock_get_class.return_value = mock_provider_class
 
-                    with patch("providers.registry.registry.get_config") as mock_get_config:
+                    with patch("backend.providers.registry.registry.get_config") as mock_get_config:
                         mock_config = MagicMock()
                         mock_config.provider_id = "openai"
                         mock_config.label = "OpenAI"
@@ -485,15 +485,15 @@ class StreamCompletionUnknownProviderTests(unittest.TestCase):
 
         mock_db = AsyncMock()
 
-        with patch("providers._resolve_model", return_value=("unknown", "model")):
-            with patch("providers.resolve_api_key", new_callable=AsyncMock) as mock_resolve:
+        with patch("backend.providers._resolve_model", return_value=("unknown", "model")):
+            with patch("backend.providers.resolve_api_key", new_callable=AsyncMock) as mock_resolve:
                 mock_resolve.return_value = "test-key"
 
                 # Provider class exists (not None), but config is None
-                with patch("providers.registry.registry.get_provider_class") as mock_get_class:
+                with patch("backend.providers.registry.registry.get_provider_class") as mock_get_class:
                     mock_get_class.return_value = MagicMock()  # Class exists
 
-                    with patch("providers.registry.registry.get_config") as mock_get_config:
+                    with patch("backend.providers.registry.registry.get_config") as mock_get_config:
                         mock_get_config.return_value = None  # But no config
 
                         async def test():
@@ -545,7 +545,7 @@ class DefaultModelIdTests(unittest.TestCase):
             ModelInfo(id="openai::gpt-4", name="GPT-4", provider_id="openai", provider_label="OpenAI"),
         ]
 
-        with patch("providers.list_models", new_callable=AsyncMock) as mock_list:
+        with patch("backend.providers.list_models", new_callable=AsyncMock) as mock_list:
             mock_list.return_value = mock_models
 
             async def test():
@@ -561,7 +561,7 @@ class DefaultModelIdTests(unittest.TestCase):
 
         mock_db = AsyncMock()
 
-        with patch("providers.list_models", new_callable=AsyncMock) as mock_list:
+        with patch("backend.providers.list_models", new_callable=AsyncMock) as mock_list:
             mock_list.return_value = []
 
             async def test():
@@ -578,7 +578,7 @@ class ClearInaccessibleModelsTests(unittest.TestCase):
         """Calls clear_inaccessible and returns count."""
         from backend.providers import clear_inaccessible_models
 
-        with patch("providers.clear_inaccessible", return_value=5) as mock_clear:
+        with patch("backend.providers.clear_inaccessible", return_value=5) as mock_clear:
             result = clear_inaccessible_models()
             self.assertEqual(result, 5)
             mock_clear.assert_called_once()
@@ -598,10 +598,10 @@ class ListProvidersStaticTests(unittest.TestCase):
             auth_type="bearer", json_path="", id_field="", litellm_prefix="openai"
         )
 
-        with patch("providers.registry.registry.get_all_configs") as mock_get_all:
+        with patch("backend.providers.registry.registry.get_all_configs") as mock_get_all:
             mock_get_all.return_value = {"openai": mock_config}
 
-            with patch("providers.get_static_env_key", return_value="test-key"):
+            with patch("backend.providers.get_static_env_key", return_value="test-key"):
                 result = list_providers_static()
                 self.assertIn("openai", result)
                 self.assertEqual(result["openai"]["label"], "OpenAI")
@@ -619,10 +619,10 @@ class ListProvidersStaticTests(unittest.TestCase):
             auth_type="bearer", json_path="", id_field="", litellm_prefix="anthropic"
         )
 
-        with patch("providers.registry.registry.get_all_configs") as mock_get_all:
+        with patch("backend.providers.registry.registry.get_all_configs") as mock_get_all:
             mock_get_all.return_value = {"anthropic": mock_config}
 
-            with patch("providers.get_static_env_key", return_value=None):
+            with patch("backend.providers.get_static_env_key", return_value=None):
                 result = list_providers_static()
                 self.assertIn("anthropic", result)
                 self.assertFalse(result["anthropic"]["env_key_set"])

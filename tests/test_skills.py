@@ -7,11 +7,19 @@ from unittest.mock import AsyncMock, patch
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 
-from skills.router import SkillRouter
-import llm
+from backend.skills.router import SkillRouter
+from backend import llm
+import backend.skills.executor as executor_module
+import backend.skills.registry as registry_module
 
 
 class SkillModelSelectionTests(unittest.TestCase):
+    def setUp(self):
+        # Reset the global executor singleton to avoid test pollution from other tests
+        executor_module._executor = None
+        # Also reset the registry to clear any skills added by other tests
+        registry_module._registry = None
+
     def test_skills_use_a_real_available_model_not_hardcoded(self):
         """Skill execution must pick a real discovered model (e.g. a local
         Ollama model) instead of the old hardcoded phantom 'claude-sonnet-5',

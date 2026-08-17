@@ -4,6 +4,7 @@ extraction) stays in llm.py / document.py; this module wires HTTP in and
 out and persists chat state via SQLAlchemy.
 """
 import asyncio
+import logging
 import re
 import time
 import uuid
@@ -41,6 +42,8 @@ from backend.config import settings
 router = APIRouter()
 public_router = APIRouter()
 
+logger = logging.getLogger(__name__)
+
 # Magic byte validator for file uploads
 # Maps extension to expected MIME types (using python-magic)
 ALLOWED_MIME_TYPES = {
@@ -72,19 +75,28 @@ ALLOWED_MIME_TYPES = {
 # If either is missing, degrade gracefully to extension-only validation
 # (already enforced above) instead of crashing the whole app at import time —
 # same pattern used for OCR in document.py.
-try:
-    import magic
-    _magic = magic.Magic(mime=True)
-    MAGIC_AVAILABLE = True
-except Exception:  # noqa: BLE001 — missing package or missing system libmagic
-    _magic = None
-    MAGIC_AVAILABLE = False
-    from loguru import logger
-    logger.warning(
-        "python-magic / libmagic not available — file uploads will only be "
-        "validated by extension, not by content. Install the system libmagic "
-        "library (apt: libmagic1, brew: libmagic) to re-enable content validation."
-    )
+_magic = None
+MAGIC_AVAILABLE = False
+
+def _get_magic():
+    """Lazy initialization of python-magic to avoid import-time crashes on Windows."""
+    global _magic, MAGIC_AVAILABLE
+    if _magic is not None or MAGIC_AVAILABLE is False:
+        return _magic
+    try:
+        import magic
+        _magic = magic.Magic(mime=True)
+        MAGIC_AVAILABLE = True
+    except Exception:  # noqa: BLE001 — missing package or missing system libmagic
+        _magic = None
+        MAGIC_AVAILABLE = False
+        from loguru import logger
+        logger.warning(
+            "python-magic / libmagic not available — file uploads will only be "
+            "validated by extension, not by content. Install the system libmagic "
+            "library (apt: libmagic1, brew: libmagic) to re-enable content validation."
+        )
+    return _magic
 
 
 def sse_event(data: str, event: str | None = None) -> str:
@@ -233,27 +245,35 @@ async def refresh_provider_models(provider_id: str, db: AsyncSession = Depends(g
     if not api_key:
         raise HTTPException(status_code=400, detail=f"No API key linked for {config.label}")
 
-    models = await llm.fetch_models_from_provider(
-        api_key=api_key,
-        endpoint_url=config.model_endpoint,
-        provider_id=provider_id,
-        provider_label=config.label,
-        auth_type=config.auth_type,
-        auth_header_name=config.auth_header_name or "x-api-key",
-        query_key=config.query_key,
-        json_path=config.json_path,
-        id_field=config.id_field,
-        strip_prefix=config.strip_prefix or "",
-        extra_headers=config.extra_headers,
-        timeout_seconds=20.0,
-    )
-
-    return RefreshModelsOut(
-        provider_id=provider_id,
-        success=True,
-        count=len(models),
-        models=[ProviderModelEntry(**m) for m in models],
-    )
+    try:
+        models = await llm.fetch_models_from_provider(
+            api_key=api_key,
+            endpoint_url=config.model_endpoint,
+            provider_id=provider_id,
+            provider_label=config.label,
+            auth_type=config.auth_type,
+            auth_header_name=config.auth_header_name or "x-api-key",
+            query_key=config.query_key,
+            json_path=config.json_path,
+            id_field=config.id_field,
+            strip_prefix=config.strip_prefix or "",
+            extra_headers=config.extra_headers,
+            timeout_seconds=20.0,
+        )
+        return RefreshModelsOut(
+            provider_id=provider_id,
+            success=True,
+            count=len(models),
+            models=[ProviderModelEntry(**m) for m in models],
+        )
+    except Exception as exc:
+        logger.warning("fetch_models_from_provider(%s) failed: %s", provider_id, exc)
+        return RefreshModelsOut(
+            provider_id=provider_id,
+            success=False,
+            count=0,
+            models=[],
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -325,7 +345,8 @@ async def upload_file(request: Request, file: UploadFile, db: AsyncSession = Dep
     # Magic byte validation - verify the file contents match the declared extension.
     # Skipped gracefully if libmagic isn't installed on this system (extension
     # check above still applies).
-    if MAGIC_AVAILABLE:
+    _magic = _get_magic()
+    if _magic:
         try:
             detected_mime = _magic.from_buffer(contents)
         except Exception as exc:

@@ -6,6 +6,7 @@ for integration tests against the FastAPI application.
 """
 import asyncio
 import sys
+import types
 from pathlib import Path
 from typing import AsyncGenerator
 from unittest.mock import AsyncMock, MagicMock
@@ -16,6 +17,33 @@ from httpx import ASGITransport, AsyncClient
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
+
+# Pre-mock OCR dependencies BEFORE any test imports the document module.
+# This ensures OCR_AVAILABLE = True and allows patching of pytesseract/PIL
+# for all tests that import document (test_document_new.py, test_document_coverage.py)
+# Must run before any test module imports document.
+def _mock_ocr_dependencies():
+    """Mock pytesseract, pdf2image, and PIL before document module imports them."""
+    # Mock pytesseract
+    pytesseract_mock = types.ModuleType("pytesseract")
+    pytesseract_mock.image_to_string = MagicMock()
+    sys.modules["pytesseract"] = pytesseract_mock
+
+    # Mock pdf2image
+    pdf2image_mock = types.ModuleType("pdf2image")
+    pdf2image_mock.convert_from_path = MagicMock()
+    sys.modules["pdf2image"] = pdf2image_mock
+
+    # Mock PIL and its submodules
+    pil_mock = types.ModuleType("PIL")
+    pil_mock.__version__ = "10.0.0"
+    for submodule in ["Image", "ImageFont", "ImageDraw", "ImageFilter", "ImageColor"]:
+        sub_mod = types.ModuleType(f"PIL.{submodule}")
+        setattr(pil_mock, submodule, sub_mod)
+        sys.modules[f"PIL.{submodule}"] = sub_mod
+    sys.modules["PIL"] = pil_mock
+
+_mock_ocr_dependencies()
 
 
 @pytest.fixture(scope="session")

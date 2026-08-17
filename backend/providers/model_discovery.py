@@ -65,9 +65,18 @@ def _infer_capabilities(model_id: str, provider_id: str, entry: dict | None = No
         # Some providers include capability fields
         if entry.get("supports_vision") or entry.get("vision"):
             capabilities.vision = True
-        if entry.get("supports_tools") or entry.get("tools") or entry.get("function_calling"):
+        # Check for tools in various formats: boolean flags or capabilities array
+        entry_tools = entry.get("tools") or entry.get("supports_tools") or entry.get("function_calling")
+        entry_capabilities = entry.get("capabilities", [])
+        if isinstance(entry_capabilities, list) and "tools" in entry_capabilities:
+            entry_tools = True
+        if entry_tools:
             capabilities.tools = True
         if entry.get("supports_reasoning") or entry.get("reasoning"):
+            capabilities.reasoning = True
+        # Check for reasoning in capabilities array
+        entry_capabilities = entry.get("capabilities", [])
+        if isinstance(entry_capabilities, list) and "reasoning" in entry_capabilities:
             capabilities.reasoning = True
         if entry.get("structured_output") or entry.get("json_mode"):
             capabilities.structured_output = True
@@ -228,12 +237,13 @@ async def fetch_ollama_models(base_url: str = "http://localhost:11434") -> list[
                 if isinstance(item.get("name"), str) and item["name"]:
                     name = item["name"]
                     capabilities = _infer_capabilities(name, "ollama", item)
+                    litellm_id = f"ollama/{name}"
                     result.append(ModelInfo(
-                        id=f"ollama::{name}",
+                        id=f"ollama::{litellm_id}",
                         name=name,
                         provider_id="ollama",
                         provider_label="Ollama",
-                        litellm_id=f"ollama/{name}",
+                        litellm_id=litellm_id,
                         capabilities=capabilities,
                     ))
             return result
