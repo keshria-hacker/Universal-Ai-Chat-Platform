@@ -17,6 +17,7 @@ import {
   resetChatState
 } from '../../core/state.js';
 import { PROVIDER_COLORS, FILE_ICON_MAP } from '../../shared/constants.js';
+console.log('[Module] chat.js loaded');
 
 // DOM elements
 let elements = {};
@@ -98,7 +99,8 @@ function setThinkingPhase(node, phase, elapsedSec = null) {
     statusEl = document.createElement('div');
     statusEl.className = 'msg-phase-status';
     const body = node.querySelector('.msg-body');
-    const ref = body.querySelector('.msg-content') || body.querySelector('.typing-indicator');
+    // .typing-indicator is inside <article class="assistant-response">, so use that as reference
+    const ref = body.querySelector('.msg-content') || body.querySelector('article.assistant-response');
     if (ref) {
       body.insertBefore(statusEl, ref);
     } else {
@@ -139,7 +141,8 @@ function showReasoningInNode(node, text) {
       <div class="msg-reasoning-content"></div>
     </details>`;
     const body = node.querySelector('.msg-body');
-    const ref = body.querySelector('.msg-content') || body.querySelector('.typing-indicator');
+    // .typing-indicator is inside <article class="assistant-response">, so use that as reference
+    const ref = body.querySelector('.msg-content') || body.querySelector('article.assistant-response');
     if (ref) {
       body.insertBefore(section, ref);
     } else {
@@ -168,7 +171,8 @@ function showToolCallInNode(node, toolCall) {
     container = document.createElement("div");
     container.className = "msg-tool-calls";
     const body = node.querySelector(".msg-body");
-    const ref = body.querySelector(".msg-content") || body.querySelector(".typing-indicator");
+    // .typing-indicator is inside <article class="assistant-response">, so use that as reference
+    const ref = body.querySelector(".msg-content") || body.querySelector("article.assistant-response");
     if (ref) {
       body.insertBefore(container, ref);
     } else {
@@ -176,12 +180,12 @@ function showToolCallInNode(node, toolCall) {
     }
   }
 
-  let toolEl = container.querySelector("[data-tool-id="" + toolCall.id + ""]");
+  let toolEl = container.querySelector('[data-tool-id="' + toolCall.id + '"]');
   if (!toolEl) {
     toolEl = document.createElement("div");
     toolEl.className = "tool-call";
     toolEl.dataset.toolId = toolCall.id;
-    toolEl.innerHTML = "<details open><summary><i class="fa-solid fa-wrench"></i> " + escapeHtml(toolCall.name) + " <span class="tool-call-status"></span></summary><div class="tool-call-args"><pre><code>" + escapeHtml(toolCall.arguments || "") + "</code></pre></div><div class="tool-call-result" style="display:none;"></div></details>";
+    toolEl.innerHTML = '<details open><summary><i class="fa-solid fa-wrench"></i> ' + escapeHtml(toolCall.name) + ' <span class="tool-call-status"></span></summary><div class="tool-call-args"><pre><code>' + escapeHtml(toolCall.arguments || "") + '</code></pre></div><div class="tool-call-result" style="display:none;"></div></details>';
     container.appendChild(toolEl);
   }
 
@@ -218,7 +222,8 @@ function showCitationInNode(node, citation) {
     container = document.createElement("div");
     container.className = "msg-citations";
     const body = node.querySelector(".msg-body");
-    const ref = body.querySelector(".msg-actions");
+    // .msg-actions doesn't exist during streaming, use article.assistant-response as reference
+    const ref = body.querySelector(".msg-actions") || body.querySelector("article.assistant-response");
     if (ref) {
       body.insertBefore(container, ref);
     } else {
@@ -227,12 +232,12 @@ function showCitationInNode(node, citation) {
   }
 
   const idx = citation.index ?? container.querySelectorAll(".citation-item").length + 1;
-  let citeEl = container.querySelector("[data-citation-index="" + idx + ""]");
+  let citeEl = container.querySelector('[data-citation-index="' + idx + '"]');
   if (!citeEl) {
     citeEl = document.createElement("div");
     citeEl.className = "citation-item";
     citeEl.dataset.citationIndex = idx;
-    citeEl.innerHTML = "<span class="citation-badge">[" + idx + "]</span><span class="citation-title">" + escapeHtml(citation.title || "Source") + "</span>" + (citation.url ? "<a href="" + escapeHtml(citation.url) + "" target="_blank" rel="noopener noreferrer" class="citation-link"><i class="fa-solid fa-external-link-alt"></i></a>" : "");
+    citeEl.innerHTML = '<span class="citation-badge">[' + idx + ']</span><span class="citation-title">' + escapeHtml(citation.title || "Source") + '</span>' + (citation.url ? '<a href="' + escapeHtml(citation.url) + '" target="_blank" rel="noopener noreferrer" class="citation-link"><i class="fa-solid fa-external-link-alt"></i></a>' : "");
     container.appendChild(citeEl);
   }
 
@@ -252,7 +257,8 @@ function showArtifactInNode(node, artifact) {
     container = document.createElement("div");
     container.className = "msg-artifacts";
     const body = node.querySelector(".msg-body");
-    const ref = body.querySelector(".msg-actions");
+    // .msg-actions doesn't exist during streaming, use article.assistant-response as reference
+    const ref = body.querySelector(".msg-actions") || body.querySelector("article.assistant-response");
     if (ref) {
       body.insertBefore(container, ref);
     } else {
@@ -260,12 +266,12 @@ function showArtifactInNode(node, artifact) {
     }
   }
 
-  let artifactEl = container.querySelector("[data-artifact-id="" + artifact.id + ""]");
+  let artifactEl = container.querySelector('[data-artifact-id="' + artifact.id + '"]');
   if (!artifactEl) {
     artifactEl = document.createElement("div");
     artifactEl.className = "artifact";
     artifactEl.dataset.artifactId = artifact.id;
-    artifactEl.innerHTML = "<div class="artifact-header"><span class="artifact-type"><i class="fa-solid fa-file-code"></i> " + escapeHtml(artifact.type || "artifact") + "</span><span class="artifact-title">" + escapeHtml(artifact.title || "Untitled") + "</span></div><div class="artifact-content"></div>";
+    artifactEl.innerHTML = '<div class="artifact-header"><span class="artifact-type"><i class="fa-solid fa-file-code"></i> ' + escapeHtml(artifact.type || "artifact") + '</span><span class="artifact-title">' + escapeHtml(artifact.title || "Untitled") + '</span></div><div class="artifact-content"></div>';
     container.appendChild(artifactEl);
   }
 
@@ -274,10 +280,11 @@ function showArtifactInNode(node, artifact) {
     if (artifact.mime?.startsWith("text/") || artifact.type === "code") {
       contentEl.innerHTML = "<pre><code>" + escapeHtml(artifact.content) + "</code></pre>";
       import("../../shared/markdown.js").then(mod => { mod.enhanceCodeBlocks(contentEl); }).catch(() => {});
-    } else if (artifact.mime?.startsWith("image/")) { 
-      contentEl.innerHTML = "<img src=\"" + escapeHtml(artifact.content) + "\" alt=\"" + escapeHtml(artifact.title) + "\" loading=\"lazy\">";
-    else {
+    } else if (artifact.mime?.startsWith("image/")) {
+      contentEl.innerHTML = '<img src="' + escapeHtml(artifact.content) + '" alt="' + escapeHtml(artifact.title) + '" loading="lazy">';
+    } else {
       contentEl.textContent = artifact.content;
+    }
   }
 }
 
@@ -381,35 +388,35 @@ export function buildMessageNode(msg) {
   // Render tool calls if present
   let toolCallsHtml = "";
   if (msg.tool_calls && msg.tool_calls.length > 0) {
-    toolCallsHtml = "<div class="msg-tool-calls">" + 
-      msg.tool_calls.map(tc => "<details open><summary><i class="fa-solid fa-wrench"></i> " + escapeHtml(tc.name) + " <span class="tool-call-status"> ✓</span></summary><div class="tool-call-args"><pre><code>" + escapeHtml(tc.arguments || "") + "</code></pre></div><div class="tool-call-result" style="display:block;"><pre><code>" + escapeHtml(tc.result || "") + "</code></pre></div></details>").join("") + 
-      "</div>";
+    toolCallsHtml = '<div class="msg-tool-calls">' +
+      msg.tool_calls.map(tc => '<details open><summary><i class="fa-solid fa-wrench"></i> ' + escapeHtml(tc.name) + ' <span class="tool-call-status"> ✓</span></summary><div class="tool-call-args"><pre><code>' + escapeHtml(tc.arguments || "") + '</code></pre></div><div class="tool-call-result" style="display:block;"><pre><code>' + escapeHtml(tc.result || "") + '</code></pre></div></details>').join("") +
+      '</div>';
   }
 
   // Render citations if present
   let citationsHtml = "";
   if (msg.citations && msg.citations.length > 0) {
-    citationsHtml = "<div class="msg-citations">" + 
-      msg.citations.map((c, idx) => "<div class="citation-item" data-citation-index="" + (idx + 1) + ""><span class="citation-badge">[" + (idx + 1) + "]</span><span class="citation-title">" + escapeHtml(c.title || "Source") + "</span>" + (c.url ? "<a href="" + escapeHtml(c.url) + "" target="_blank" rel="noopener noreferrer" class="citation-link"><i class="fa-solid fa-external-link-alt"></i></a>" : "") + "</div>").join("") + 
-      "</div>";
+    citationsHtml = '<div class="msg-citations">' +
+      msg.citations.map((c, idx) => '<div class="citation-item" data-citation-index="' + (idx + 1) + '"><span class="citation-badge">[' + (idx + 1) + ']</span><span class="citation-title">' + escapeHtml(c.title || "Source") + '</span>' + (c.url ? '<a href="' + escapeHtml(c.url) + '" target="_blank" rel="noopener noreferrer" class="citation-link"><i class="fa-solid fa-external-link-alt"></i></a>' : '') + '</div>').join("") +
+      '</div>';
   }
 
   // Render artifacts if present
   let artifactsHtml = "";
   if (msg.artifacts && msg.artifacts.length > 0) {
-    artifactsHtml = "<div class="msg-artifacts">" + 
+    artifactsHtml = '<div class="msg-artifacts">' +
       msg.artifacts.map(a => {
       let contentHtml = "";
       if (a.mime?.startsWith("text/") || a.type === "code") {
-        contentHtml = "<pre><code>" + escapeHtml(a.content || "") + "</code></pre>";
+        contentHtml = '<pre><code>' + escapeHtml(a.content || "") + '</code></pre>';
       } else if (a.mime?.startsWith("image/")) {
-        contentHtml = "<img src="" + escapeHtml(a.content || "") + "" alt="" + escapeHtml(a.title || "") + "" loading="lazy">";
+        contentHtml = '<img src="' + escapeHtml(a.content || "") + '" alt="' + escapeHtml(a.title || "") + '" loading="lazy">';
       } else {
         contentHtml = escapeHtml(a.content || "");
       }
-      return "<div class="artifact"><div class="artifact-header"><span class="artifact-type"><i class="fa-solid fa-file-code"></i> " + escapeHtml(a.type || "artifact") + "</span><span class="artifact-title">" + escapeHtml(a.title || "Untitled") + "</span></div><div class="artifact-content">" + contentHtml + "</div></div>";
-      }).join("") + 
-      "</div>";
+      return '<div class="artifact"><div class="artifact-header"><span class="artifact-type"><i class="fa-solid fa-file-code"></i> ' + escapeHtml(a.type || "artifact") + '</span><span class="artifact-title">' + escapeHtml(a.title || "Untitled") + '</span></div><div class="artifact-content">' + contentHtml + '</div></div>';
+      }).join("") +
+      '</div>';
   }
 
   node.innerHTML = `

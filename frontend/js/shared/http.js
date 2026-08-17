@@ -5,6 +5,8 @@
 
 import { STORAGE_KEYS } from './constants.js';
 
+console.log('[Module] shared/http.js loaded');
+
 // Store ref to API base for quick access
 let _apiBase = null;
 

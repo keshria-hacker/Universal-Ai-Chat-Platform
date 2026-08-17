@@ -12,8 +12,17 @@ import {
   getMessages, setMessages, getSelectedModel, selectModel,
   getAbortController, getModels, getSidebarCollapsed, setSidebarCollapsed
 } from '../../core/state.js';
-import { renderMessages, scrollToBottom, startNewChat } from '../chat/chat.js';
 import { closeProfilePopup } from '../auth/auth.js';
+console.log('[Module] sidebar.js loaded');
+
+// Dynamic imports to break circular dependency with chat.js
+let _chatModule = null;
+async function getChatModule() {
+  if (!_chatModule) {
+    _chatModule = await import('../chat/chat.js');
+  }
+  return _chatModule;
+}
 
 let elements = {};
 let _contextMenuEl = null;
@@ -280,8 +289,8 @@ export async function openChat(chatId) {
     setMessages(chat.messages);
     if (skeletonEl) skeletonEl.classList.add('hidden');
     if (messagesEl) messagesEl.classList.remove('hidden');
-    renderMessages();
-    scrollToBottom(false);
+    await callChatModule('renderMessages');
+    await callChatModule('scrollToBottom', false);
   } catch (err) {
     if (skeletonEl) skeletonEl.classList.add('hidden');
     if (errorEl) errorEl.classList.remove('hidden');
@@ -293,6 +302,12 @@ export async function openChat(chatId) {
 }
 
 var pendingDeleteChatId = null;
+
+// Helper functions to access chat module exports
+async function callChatModule(fnName, ...args) {
+  const mod = await getChatModule();
+  return mod[fnName](...args);
+}
 
 function showConfirmDelete(chatId) {
   pendingDeleteChatId = chatId;
@@ -320,8 +335,8 @@ export function deleteChat(chatId) {
 export function initSidebar() {
   initElements();
 
-  elements.newChatBtn?.addEventListener('click', function() { closeProfilePopup(); startNewChat(); });
-  elements.mobileNewChat?.addEventListener('click', function() { closeProfilePopup(); startNewChat(); closeMobileSidebar(); });
+  elements.newChatBtn?.addEventListener('click', function() { closeProfilePopup(); callChatModule('startNewChat'); });
+  elements.mobileNewChat?.addEventListener('click', function() { closeProfilePopup(); callChatModule('startNewChat'); closeMobileSidebar(); });
   elements.collapseSidebar?.addEventListener('click', toggleSidebarCollapse);
   elements.expandSidebar?.addEventListener('click', toggleSidebarCollapse);
   var collapsed = getSidebarCollapsed();
@@ -354,7 +369,7 @@ export function initSidebar() {
       var pinned = getPinnedIds().filter(function(id) { return id !== chatId; });
       setPinnedIds(pinned);
       setChats(getChats().filter(function(c) { return c.id !== chatId; }));
-      if (getActiveChatId() === chatId) startNewChat();
+      if (getActiveChatId() === chatId) await callChatModule('startNewChat');
       renderChatHistory(elements.searchChats ? elements.searchChats.value : '');
       showToast({ type: 'success', message: 'Chat deleted.' });
     } catch (err) {

@@ -13,6 +13,7 @@ import { initElements as initSidebarElements, initSidebar, openMobileSidebar, cl
 import { showToast, initToasts } from './shared/toast.js';
 import { getApiBaseUrl } from './shared/http.js';
 import { injectMarkdownCSP } from './shared/markdown.js';
+import { $, $$ } from './shared/utils.js';
 
 // Global elements that cross module boundaries
 let elements = {};
@@ -445,8 +446,15 @@ async function init() {
 }
 
 // Start the app when DOM is ready
+console.log('[App] Document readyState:', document.readyState, '- Starting module loads...');
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', init);
+  document.addEventListener('DOMContentLoaded', () => {
+    console.log('[App] DOMContentLoaded - calling init()');
+    init();
+  });
 } else {
+  console.log('[App] Already loaded - calling init() directly');
   init();
 }
+
+console.log('[App] Module graph loaded successfully, exports available');

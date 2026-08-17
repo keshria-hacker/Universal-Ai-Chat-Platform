@@ -611,12 +611,16 @@ export function areMarkdownLibsLoaded() {
  * @returns {Object} CSP directives
  */
 export function getMarkdownCSP() {
+  // Allow http: for local backend connections (e.g., http://127.0.0.1:8001)
+  const isLocalhost = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+  const connectSrc = isLocalhost ? "'self' http: https:" : "'self' https:";
+
   return {
     'script-src': "'self' 'unsafe-eval' https://cdnjs.cloudflare.com",
     'style-src': "'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com",
     'font-src': "'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com",
     'img-src': "'self' data: https:",
-    'connect-src': "'self' https:",
+    'connect-src': connectSrc,
     'frame-ancestors': "'none'",
     'base-uri': "'self'",
     'form-action': "'self'"

@@ -11,7 +11,16 @@ import {
 } from '../../core/state.js';
 import { DEFAULT_SETTINGS, CODE_THEME_URLS, PROVIDER_COLORS, STORAGE_KEYS } from '../../shared/constants.js';
 import { loadProvidersAndModels } from '../models/models.js';
-import { renderMessages } from '../chat/chat.js';
+console.log('[Module] settings.js loaded');
+
+// Dynamic import to break circular dependency with chat.js
+let _chatModule = null;
+async function getChatModule() {
+  if (!_chatModule) {
+    _chatModule = await import('../chat/chat.js');
+  }
+  return _chatModule;
+}
 
 let elements = {};
 
@@ -345,7 +354,7 @@ export function initSettings() {
   });
 
   // Code theme
-  elements.codeThemeSelect?.addEventListener('change', () => {
+  elements.codeThemeSelect?.addEventListener('change', async () => {
     const s = getSettings();
     const eff = s.theme === 'system'
       ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
@@ -356,7 +365,8 @@ export function initSettings() {
     setSettings(newSettings);
     applySettings();
     // Re-render messages for code block theme change
-    renderMessages();
+    const chatModule = await getChatModule();
+    chatModule.renderMessages();
   });
 
   // Animations
