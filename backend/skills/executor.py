@@ -10,10 +10,10 @@ import time
 from dataclasses import dataclass
 from typing import Any
 
-import llm
-from database import AsyncSessionLocal
+from backend import llm
+from backend.database import AsyncSessionLocal
 from pydantic import BaseModel, ValidationError, create_model
-from skills.registry import SkillDefinition, get_registry
+from backend.skills.registry import SkillDefinition, get_registry
 from tenacity import (
     AsyncRetrying,
     retry_if_exception_type,
@@ -206,7 +206,7 @@ class SkillExecutor:
 
         # Execute with timeout and retry
         try:
-            result = await asyncio.wait_for(
+            result, model_id = await asyncio.wait_for(
                 self._execute_with_retry(prompt, skill),
                 timeout=effective_timeout,
             )
@@ -216,7 +216,7 @@ class SkillExecutor:
                 skill_name=skill.name,
                 result=result,
                 duration_ms=duration_ms,
-                model_used=skill.model if hasattr(skill, 'model') else None,
+                model_used=model_id,
             )
         except TimeoutError:
             duration_ms = int((time.monotonic() - start_time) * 1000)
@@ -261,8 +261,12 @@ class SkillExecutor:
         merged_params = {**params, **context}
         return self.registry.build_prompt(skill_id, **merged_params)
 
-    async def _execute_with_retry(self, prompt: str, skill: SkillDefinition) -> str:
-        """Execute the LLM call with retry logic for transient failures."""
+    async def _execute_with_retry(self, prompt: str, skill: SkillDefinition) -> tuple[str, str]:
+        """Execute the LLM call with retry logic for transient failures.
+
+        Returns:
+            tuple of (result_content, model_id_used)
+        """
         async with AsyncSessionLocal() as db:
             model_id = await llm.default_model_id(db)
             if not model_id:
@@ -301,7 +305,7 @@ class SkillExecutor:
                     if not content:
                         raise ValueError("Model returned empty response")
 
-                    return content
+                    return content, model_id
 
     def _categorize_error(self, exc: Exception) -> str:
         """Convert exception to user-friendly error message with category."""

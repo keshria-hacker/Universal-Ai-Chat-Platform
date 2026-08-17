@@ -5,13 +5,7 @@ from typing import Any
 
 import litellm
 
-from .base import BaseProvider, ModelInfo
-
-# Sentinel prefix to distinguish reasoning tokens from content tokens
-# in the SSE stream. Providers yield reasoning_content with this prefix;
-# api.py strips it and emits an "event: reasoning" SSE frame instead.
-REASONING_PREFIX = "\x00REASONING\x00"
-_HAVE_REASONING = hasattr(litellm, 'Delta') or True  # litellm Delta always has reasoning_content
+from .base import BaseProvider, ModelInfo, parse_litellm_stream_chunk
 
 
 class LiteLLMProvider(BaseProvider):
@@ -21,7 +15,7 @@ class LiteLLMProvider(BaseProvider):
         # LiteLLM doesn't have a unified model listing - fallback returns empty
         return []
 
-    async def stream_completion(
+    async def stream_completion(  # noqa: PLR0917
         self,
         model_id: str,
         messages: list[dict],
@@ -49,20 +43,19 @@ class LiteLLMProvider(BaseProvider):
             completion_kwargs["api_key"] = api_key
         if reasoning_effort and reasoning_effort != "none":
             completion_kwargs["reasoning_effort"] = reasoning_effort
+        if kwargs.get("tools"):
+            completion_kwargs["tools"] = kwargs["tools"]
 
         response = await litellm.acompletion(**completion_kwargs)
+        include_metadata = bool(kwargs.get("include_metadata"))
         async for chunk in response:
-            if not chunk.choices:
+            normalized = parse_litellm_stream_chunk(chunk)
+            if normalized is None:
                 continue
-
-            delta = chunk.choices[0].delta
-
-            # Some providers (OpenAI o-series, Claude extended thinking)
-            # emit reasoning_content in a separate chunk before content.
-            rc = getattr(delta, 'reasoning_content', None)
-            if rc:
-                yield REASONING_PREFIX + rc
-
-            content = delta.content or ""
-            if content:
-                yield content
+            if include_metadata:
+                yield normalized
+                continue
+            if normalized.reasoning:
+                yield normalized.reasoning
+            if normalized.text:
+                yield normalized.text

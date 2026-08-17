@@ -231,18 +231,14 @@ class ProductionModeTests(unittest.TestCase):
     """Tests for production mode logging in forgot password (lines 282-288)."""
 
     @patch("auth.logger.warning")
-    @patch.dict("os.environ", {"ENV": "production"})
-    def test_forgot_password_production_mode_logs_token(self, mock_logger):
+    @patch("auth.settings")  # Patch the settings object used by auth module
+    def test_forgot_password_production_mode_logs_token(self, mock_settings, mock_logger):
         """In production mode, token is logged not returned (lines 282-288)."""
         import asyncio
-        import importlib
-        import config
-
-        # Reload config and auth to pick up production ENV
-        importlib.reload(config)
-        import auth
-        importlib.reload(auth)
         from auth import forgot_password
+        from schemas import ForgotPasswordIn
+
+        mock_settings.ENV = "production"
 
         mock_user = MagicMock(id=1, username="testuser_prod")
 

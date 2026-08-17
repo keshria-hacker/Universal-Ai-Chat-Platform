@@ -2,7 +2,7 @@
 API key resolution - environment variables and database keys.
 """
 
-from models import ProviderKey
+from backend.models import ProviderKey
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -27,7 +27,7 @@ async def resolve_api_key(provider_id: str, db: AsyncSession) -> str | None:
 
 def get_static_env_key(provider_id: str) -> str | None:
     """Get the environment variable key for a provider by ID."""
-    from config import settings
+    from backend.config import settings
 
     env_map = {
         "openai": settings.OPENAI_API_KEY,

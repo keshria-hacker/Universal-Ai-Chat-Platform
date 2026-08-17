@@ -22,13 +22,13 @@ sys.path.insert(0, str(ROOT / "backend"))
 os.environ["TEST_MODE"] = "1"
 os.environ["MASTER_KEY"] = "7nQheyKjedj1oYnZhCq3PqxMRCl9E5rdteunHkQzGBQ="
 
-from providers.base import BaseProvider, ModelInfo, ProviderConfig
-from providers.key_resolver import get_db_keys, get_static_env_key, resolve_api_key
-from providers.model_discovery import fetch_models_from_provider, fetch_ollama_models
-from providers.ollama import OllamaProvider
-from providers.openai_compatible import OpenAICompatibleProvider
-from providers.registry import ProviderRegistry
-from database import reset_db, AsyncSessionLocal
+from backend.providers.base import BaseProvider, ModelInfo, ProviderConfig
+from backend.providers.key_resolver import get_db_keys, get_static_env_key, resolve_api_key
+from backend.providers.model_discovery import fetch_models_from_provider, fetch_ollama_models
+from backend.providers.ollama import OllamaProvider
+from backend.providers.openai_compatible import OpenAICompatibleProvider
+from backend.providers.registry import ProviderRegistry
+from backend.database import reset_db, AsyncSessionLocal
 
 
 def _make_ollama_config() -> ProviderConfig:
@@ -235,7 +235,7 @@ class TestProviderRegistry(unittest.IsolatedAsyncioTestCase):
         await reset_db()
         self.session = AsyncSessionLocal()
         # Initialize the registry
-        from providers.registry import init_provider_registry
+        from backend.providers.registry import init_provider_registry
         init_provider_registry()
         self.registry = ProviderRegistry()
 
@@ -304,7 +304,7 @@ class TestModelDiscovery(unittest.IsolatedAsyncioTestCase):
 
     def test_fetch_ollama_models_importable(self):
         """fetch_ollama_models should be importable."""
-        from providers.model_discovery import fetch_ollama_models
+        from backend.providers.model_discovery import fetch_ollama_models
         self.assertTrue(callable(fetch_ollama_models))
 
     @patch('providers.model_discovery.httpx.AsyncClient')
@@ -329,20 +329,20 @@ class TestProviderInit(unittest.TestCase):
 
     def test_imports_work(self):
         """All provider modules should import without error."""
-        from providers.ollama import OllamaProvider
-        from providers.openai_compatible import OpenAICompatibleProvider
-        from providers.registry import ProviderRegistry
-        from providers.model_discovery import (
+        from backend.providers.ollama import OllamaProvider
+        from backend.providers.openai_compatible import OpenAICompatibleProvider
+        from backend.providers.registry import ProviderRegistry
+        from backend.providers.model_discovery import (
             fetch_models_from_provider,
             fetch_ollama_models,
         )
-        from providers.key_resolver import (
+        from backend.providers.key_resolver import (
             resolve_api_key,
             get_db_keys,
             get_static_env_key,
             list_linked_providers,
         )
-        from providers.base import BaseProvider
+        from backend.providers.base import BaseProvider
         self.assertTrue(True)
 
 

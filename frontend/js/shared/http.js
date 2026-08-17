@@ -5,6 +5,8 @@
 
 import { STORAGE_KEYS } from './constants.js';
 
+console.log('[Module] shared/http.js loaded');
+
 // Store ref to API base for quick access
 let _apiBase = null;
 
@@ -206,33 +208,46 @@ export async function streamChatCompletion(body, signal) {
  */
 export async function* parseSSE(stream) {
   const reader = stream.getReader();
-  const decoder = new TextDecoder();
+  const decoder = new TextDecoder('utf-8', { fatal: false });
   let buffer = '';
+
+  function parseFrame(frame) {
+    let eventType = 'message';
+    let data = '';
+
+    frame.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n').forEach((line) => {
+      if (!line || line.startsWith(':')) return;
+      if (line.startsWith('event:')) {
+        eventType = line.slice(6).trim();
+      } else if (line.startsWith('data:')) {
+        data += (data ? '\n' : '') + line.slice(5).replace(/^ /, '');
+      }
+    });
+
+    return { event: eventType, data };
+  }
 
   try {
     while (true) {
       const { value, done } = await reader.read();
       if (done) break;
       buffer += decoder.decode(value, { stream: true });
+      buffer = buffer.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
 
       let frameEnd;
       while ((frameEnd = buffer.indexOf('\n\n')) !== -1) {
         const frame = buffer.slice(0, frameEnd);
         buffer = buffer.slice(frameEnd + 2);
-
-        let eventType = 'message';
-        let data = '';
-
-        frame.split('\n').forEach((line) => {
-          if (line.startsWith('event:')) {
-            eventType = line.slice(6).trim();
-          } else if (line.startsWith('data:')) {
-            data += (data ? '\n' : '') + line.slice(5).replace(/^ /, '');
-          }
-        });
-
-        yield { event: eventType, data };
+        const parsed = parseFrame(frame);
+        if (parsed.data || parsed.event !== 'message') yield parsed;
       }
+    }
+
+    const tail = decoder.decode();
+    if (tail) buffer += tail;
+    if (buffer.trim()) {
+      // Surface an interrupted final frame as a normalized stream error.
+      yield { event: 'error', data: 'The response stream ended unexpectedly.' };
     }
   } finally {
     reader.releaseLock();

@@ -17,7 +17,7 @@ class StartupLauncherTests(unittest.TestCase):
 
         self.assertEqual(backend_cmd[0], "python")
         self.assertIn("uvicorn", backend_cmd)
-        self.assertIn("main:app", backend_cmd)
+        self.assertIn("backend.main:app", backend_cmd)
 
         self.assertEqual(frontend_cmd[0], "python")
         self.assertIn("http.server", frontend_cmd)

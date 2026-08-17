@@ -41,15 +41,17 @@ reset_settings()
 config_settings.DATABASE_URL = os.environ["DATABASE_URL"]
 
 # NOW import database module - it will create engine with test DB
-import database as db_module
+import backend.database as db_module
 
 # Use the database module's engine and session factory directly
 test_engine = db_module.engine
 TestAsyncSessionLocal = db_module.AsyncSessionLocal
 
+from backend.database import Base  # Use the same Base from the patched module
+
 # Now import backend modules - they will use the same database module
 import auth
-from database import Base  # Use the same Base from the patched module
+from backend import models  # Import models to register them with Base.metadata
 
 
 async def create_test_tables():
@@ -85,10 +87,10 @@ class AuthUnitTests(unittest.IsolatedAsyncioTestCase):
 
     async def asyncSetUp(self):
         await reset_test_db()
-        # Models are already imported via backend.auth, use those references
-        self.User = auth.User
-        self.AuthSession = auth.AuthSession
-        self.PasswordResetToken = auth.PasswordResetToken
+        # Models are already imported via backend.models, use those references
+        self.User = models.User
+        self.AuthSession = models.AuthSession
+        self.PasswordResetToken = models.PasswordResetToken
         self.session = TestAsyncSessionLocal()
 
     async def asyncTearDown(self):
@@ -557,19 +559,25 @@ class AuthEndpointTests(unittest.IsolatedAsyncioTestCase):
         """Forgot password should return token in dev mode."""
         from fastapi.testclient import TestClient
         from backend.main import app
+        from unittest.mock import patch
+        from backend.config import settings
 
-        client = TestClient(app)
+        # Ensure we're in development mode by patching settings
+        with patch.object(settings, 'ENV', 'development'):
+            client = TestClient(app)  # This triggers lifespan which calls init_db
 
-        client.post("/api/auth/register", json={
-            "username": "forgotuser",
-            "password": "StrongPass123!",
-        })
+            resp_register = client.post("/api/auth/register", json={
+                "username": "forgotuser",
+                "password": "StrongPass123!",
+            })
+            # Should succeed (201) or user may already exist (403)
+            self.assertIn(resp_register.status_code, [201, 403])
 
-        resp = client.post("/api/auth/forgot-password", json={"username": "forgotuser"})
-        self.assertEqual(resp.status_code, 200)
-        data = resp.json()
-        self.assertIn("reset_token", data)
-        self.assertIsNotNone(data["reset_token"])
+            resp = client.post("/api/auth/forgot-password", json={"username": "forgotuser"})
+            self.assertEqual(resp.status_code, 200)
+            data = resp.json()
+            self.assertIn("reset_token", data)
+            self.assertIsNotNone(data["reset_token"])
 
     async def test_forgot_password_nonexistent_user(self):
         """Forgot password for nonexistent user should return vague message."""

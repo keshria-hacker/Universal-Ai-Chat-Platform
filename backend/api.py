@@ -4,23 +4,24 @@ extraction) stays in llm.py / document.py; this module wires HTTP in and
 out and persists chat state via SQLAlchemy.
 """
 import asyncio
+import logging
 import re
 import time
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 
-import llm
-import websearch
-from database import AsyncSessionLocal, get_db
-from document import extract_text, truncate_preview
-from prompt_injection import detect_injection, sanitize_for_log
-from providers import REASONING_PREFIX
-from rag import index_document, retrieve_relevant_chunks, TOP_K as RAG_TOP_K
+from backend import llm
+from backend import websearch
+from backend.database import AsyncSessionLocal, get_db
+from backend.document import extract_text, truncate_preview
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile
 from fastapi.responses import StreamingResponse
-from models import Chat, Message, ProviderKey, UploadedFile
-from schemas import (
+from backend.models import Chat, Message, ProviderKey, UploadedFile
+from backend.rag import TOP_K as RAG_TOP_K
+from backend.rag import index_document, retrieve_relevant_chunks
+from backend.response_events import ResponseEvent, ResponseEventBuilder, ResponseEventType, normalize_error
+from backend.schemas import (
     ChatDetailOut,
     ChatOut,
     ChatStreamRequest,
@@ -36,10 +37,12 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from config import settings
+from backend.config import settings
 
 router = APIRouter()
 public_router = APIRouter()
+
+logger = logging.getLogger(__name__)
 
 # Magic byte validator for file uploads
 # Maps extension to expected MIME types (using python-magic)
@@ -72,19 +75,28 @@ ALLOWED_MIME_TYPES = {
 # If either is missing, degrade gracefully to extension-only validation
 # (already enforced above) instead of crashing the whole app at import time —
 # same pattern used for OCR in document.py.
-try:
-    import magic
-    _magic = magic.Magic(mime=True)
-    MAGIC_AVAILABLE = True
-except Exception:  # noqa: BLE001 — missing package or missing system libmagic
-    _magic = None
-    MAGIC_AVAILABLE = False
-    from loguru import logger
-    logger.warning(
-        "python-magic / libmagic not available — file uploads will only be "
-        "validated by extension, not by content. Install the system libmagic "
-        "library (apt: libmagic1, brew: libmagic) to re-enable content validation."
-    )
+_magic = None
+MAGIC_AVAILABLE = False
+
+def _get_magic():
+    """Lazy initialization of python-magic to avoid import-time crashes on Windows."""
+    global _magic, MAGIC_AVAILABLE
+    if _magic is not None or MAGIC_AVAILABLE is False:
+        return _magic
+    try:
+        import magic
+        _magic = magic.Magic(mime=True)
+        MAGIC_AVAILABLE = True
+    except Exception:  # noqa: BLE001 — missing package or missing system libmagic
+        _magic = None
+        MAGIC_AVAILABLE = False
+        from loguru import logger
+        logger.warning(
+            "python-magic / libmagic not available — file uploads will only be "
+            "validated by extension, not by content. Install the system libmagic "
+            "library (apt: libmagic1, brew: libmagic) to re-enable content validation."
+        )
+    return _magic
 
 
 def sse_event(data: str, event: str | None = None) -> str:
@@ -96,6 +108,11 @@ def sse_event(data: str, event: str | None = None) -> str:
         return f"{data_lines[0]}\n\n"
     data_text = "\n".join(f"data: {line}" for line in data_lines)
     return f"{event_line}{data_text}\n\n"
+
+
+def sse_response_event(event: ResponseEvent) -> str:
+    """Serialize a canonical response event as an SSE frame."""
+    return sse_event(event.to_json(), event="response_event")
 
 
 # ---------------------------------------------------------------------------
@@ -168,7 +185,7 @@ async def list_provider_keys(db: AsyncSession = Depends(get_db)):
             masked = f"{db_key[:6]}···{db_key[-4:]}" if len(db_key) > 10 else "···"
             out.append(ProviderKeyOut(provider_id=pid, label=meta["label"], linked=True, masked_key=masked))
         elif meta["env_key_set"]:
-            out.append(ProviderKeyOut(provider_id=pid, label=meta["label"], linked=True, masked_key="(from .env)"))
+            out.append(ProviderKeyOut(provider_id=pid, label=meta["label"], linked=True, masked_key="(from backend.env)"))
         else:
             out.append(ProviderKeyOut(provider_id=pid, label=meta["label"], linked=False, masked_key=None))
     return out
@@ -228,27 +245,35 @@ async def refresh_provider_models(provider_id: str, db: AsyncSession = Depends(g
     if not api_key:
         raise HTTPException(status_code=400, detail=f"No API key linked for {config.label}")
 
-    models = await llm.fetch_models_from_provider(
-        api_key=api_key,
-        endpoint_url=config.model_endpoint,
-        provider_id=provider_id,
-        provider_label=config.label,
-        auth_type=config.auth_type,
-        auth_header_name=config.auth_header_name or "x-api-key",
-        query_key=config.query_key,
-        json_path=config.json_path,
-        id_field=config.id_field,
-        strip_prefix=config.strip_prefix or "",
-        extra_headers=config.extra_headers,
-        timeout_seconds=20.0,
-    )
-
-    return RefreshModelsOut(
-        provider_id=provider_id,
-        success=True,
-        count=len(models),
-        models=[ProviderModelEntry(**m) for m in models],
-    )
+    try:
+        models = await llm.fetch_models_from_provider(
+            api_key=api_key,
+            endpoint_url=config.model_endpoint,
+            provider_id=provider_id,
+            provider_label=config.label,
+            auth_type=config.auth_type,
+            auth_header_name=config.auth_header_name or "x-api-key",
+            query_key=config.query_key,
+            json_path=config.json_path,
+            id_field=config.id_field,
+            strip_prefix=config.strip_prefix or "",
+            extra_headers=config.extra_headers,
+            timeout_seconds=20.0,
+        )
+        return RefreshModelsOut(
+            provider_id=provider_id,
+            success=True,
+            count=len(models),
+            models=[ProviderModelEntry(**m) for m in models],
+        )
+    except Exception as exc:
+        logger.warning("fetch_models_from_provider(%s) failed: %s", provider_id, exc)
+        return RefreshModelsOut(
+            provider_id=provider_id,
+            success=False,
+            count=0,
+            models=[],
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -320,11 +345,12 @@ async def upload_file(request: Request, file: UploadFile, db: AsyncSession = Dep
     # Magic byte validation - verify the file contents match the declared extension.
     # Skipped gracefully if libmagic isn't installed on this system (extension
     # check above still applies).
-    if MAGIC_AVAILABLE:
+    _magic = _get_magic()
+    if _magic:
         try:
             detected_mime = _magic.from_buffer(contents)
-        except Exception:
-            raise HTTPException(status_code=400, detail="Could not determine file type")
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail="Could not determine file type") from exc
 
         allowed_mimes = ALLOWED_MIME_TYPES.get(extension, [])
         if allowed_mimes and detected_mime not in allowed_mimes:
@@ -376,7 +402,11 @@ SSE_HEARTBEAT_INTERVAL = 15
 @router.post("/chat/stream")
 
 
-async def chat_stream(payload: ChatStreamRequest, db: AsyncSession = Depends(get_db)):
+async def chat_stream(  # noqa: PLR0912
+    payload: ChatStreamRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db)
+):
     # Validate the model exists before allocating any resources — a fast 400
     # is much better than failing mid-stream after the chat has been created.
     model_info = llm._resolve_model(payload.model)
@@ -438,35 +468,55 @@ async def chat_stream(payload: ChatStreamRequest, db: AsyncSession = Depends(get
     # 3. Stream the assistant's reply, persisting user + assistant messages atomically
     #    inside the generator so a client disconnect or stream error never leaves
     #    orphaned user messages in the database.
-    async def event_generator():
+    async def event_generator():  # noqa: PLR0912
         # Use a dedicated session so the outer request-scoped `db` is free for
         # concurrent requests — prevents race conditions with connection pool.
         async with AsyncSessionLocal() as stream_db:
             collected = ""
+            response_message_id = uuid.uuid4().hex[:12]
+            # Use request ID from middleware for correlation (Phase 2)
+            request_id = getattr(request.state, "request_id", uuid.uuid4().hex[:12])
             last_heartbeat = time.monotonic()
             stream_started_at = time.monotonic()
             try:
                 yield sse_event(chat.id, event="chat_id")
 
-                async for token in llm.stream_completion(
+                stream_had_error = False
+                async for event in llm.stream_response_events(
                     model_id=payload.model,
                     messages=messages,
                     db=stream_db,
                     temperature=payload.temperature,
                     max_tokens=payload.max_tokens,
                     reasoning_effort=payload.reasoning_effort,
+                    message_id=response_message_id,
+                    request_id=request_id,
                 ):
-                    # Reasoning tokens are prefixed by the provider
-                    if token.startswith(REASONING_PREFIX):
-                        yield sse_event(token[len(REASONING_PREFIX):], event="reasoning")
-                    else:
-                        collected += token
-                        yield sse_event(token)
+                    yield sse_response_event(event)
+
+                    if event.type == ResponseEventType.TEXT_DELTA and event.content:
+                        collected += event.content
+                    elif event.type == ResponseEventType.REASONING_DELTA and event.content:
+                        # Reasoning content is included in canonical event only
+                        pass
+                    elif event.type == ResponseEventType.ERROR:
+                        stream_had_error = True
+                        message = event.error.message if event.error else "Provider request failed"
+                        # Also emit legacy error event for backward compatibility
+                        yield sse_event(message, event="error")
+                        await stream_db.rollback()
+                        if not payload.chat_id:
+                            await stream_db.execute(delete(Chat).where(Chat.id == chat.id))
+                            await stream_db.commit()
+                        return
 
                     now = time.monotonic()
                     if now - last_heartbeat >= SSE_HEARTBEAT_INTERVAL:
                         yield f": heartbeat {int(now)}\n\n"
                         last_heartbeat = now
+
+                if stream_had_error:
+                    return
 
                 if time.monotonic() - last_heartbeat >= SSE_HEARTBEAT_INTERVAL:
                     yield f": heartbeat {int(time.monotonic())}\n\n"
@@ -477,7 +527,7 @@ async def chat_stream(payload: ChatStreamRequest, db: AsyncSession = Depends(get
                     stream_db.add(Message(chat_id=chat.id, role="user",
                                    content=payload.messages[-1].content,
                                    file_ids=",".join(payload.file_ids) or None))
-                stream_db.add(Message(chat_id=chat.id, role="assistant", content=collected,
+                stream_db.add(Message(id=response_message_id, chat_id=chat.id, role="assistant", content=collected,
                                model=payload.model, response_time=response_time))
                 # Merge the chat into the new session so the model/updated_at
                 # changes are tracked and persisted on commit.
@@ -499,7 +549,20 @@ async def chat_stream(payload: ChatStreamRequest, db: AsyncSession = Depends(get
                 if not payload.chat_id:
                     await stream_db.execute(delete(Chat).where(Chat.id == chat.id))
                     await stream_db.commit()
-                yield sse_event(str(exc), event="error")
+                error_builder = ResponseEventBuilder(
+                    provider=model_info.provider_id,
+                    model=payload.model,
+                    message_id=response_message_id,
+                    request_id=request_id,
+                )
+                yield sse_response_event(error_builder.message_start())
+                normalized = normalize_error(
+                    exc,
+                    provider=model_info.provider_id,
+                    model=payload.model,
+                )
+                yield sse_response_event(error_builder.error(normalized))
+                yield sse_event(normalized.message, event="error")
                 return
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")

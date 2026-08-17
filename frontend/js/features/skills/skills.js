@@ -6,6 +6,8 @@ import { getApiBaseUrl, apiFetch, apiPost } from '../../shared/http.js';
 import { showToast } from '../../shared/toast.js';
 import { escapeHtml } from '../../shared/utils.js';
 
+console.log('[Module] skills.js loaded');
+
 let elements = {};
 let state = { skills: [], filtered: [], selected: null, query: '', category: 'all', invocation: 'all' };
 

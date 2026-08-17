@@ -69,3 +69,23 @@ logs/
 /pytest_output*.txt
 /start_error.txt
 /start_output.txt
+
+# --- Verification test files (temporary) ---
+test_e2e_frontend.py
+run_backend_test.py
+reset_db.py
+test_tools.py
+fix*.py
+stream_events_impl.py
+start_debug.py
+
+# --- Frontend test files ---
+frontend/js/test_*.js
+frontend/test_*.html
+
+# --- Package lock files (if not using npm) ---
+package-lock.json
+package.json
+
+# --- Cookies ---
+cookies.txt

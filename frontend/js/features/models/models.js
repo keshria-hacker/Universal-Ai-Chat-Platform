@@ -11,6 +11,8 @@ import {
 } from '../../core/state.js';
 import { PROVIDER_COLORS } from '../../shared/constants.js';
 
+console.log('[Module] models.js loaded');
+
 let elements = {};
 
 /**

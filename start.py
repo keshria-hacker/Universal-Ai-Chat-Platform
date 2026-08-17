@@ -170,7 +170,7 @@ def ensure_env_file() -> None:
     print("Generated a new MASTER_KEY in .env (used to encrypt provider API keys at rest).")
 
 def build_commands(python_exe: str):
-    backend_cmd = [python_exe, "-m", "uvicorn", "main:app", "--host", "127.0.0.1", "--port", str(BACKEND_PORT)]
+    backend_cmd = [python_exe, "-m", "uvicorn", "backend.main:app", "--host", "127.0.0.1", "--port", str(BACKEND_PORT)]
     frontend_cmd = [python_exe, "-m", "http.server", str(FRONTEND_PORT)]
     return backend_cmd, frontend_cmd
 
@@ -199,7 +199,7 @@ def main() -> None:
     # backend creates its stdout pipe (which would be inherited otherwise).
     time.sleep(0.5)
     backend_proc = subprocess.Popen(
-        backend_cmd, cwd=BACKEND_DIR,
+        backend_cmd, cwd=ROOT,
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
         text=True, bufsize=1,
     )

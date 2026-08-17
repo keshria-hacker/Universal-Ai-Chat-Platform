@@ -16,6 +16,30 @@ sys.path.insert(0, str(ROOT / "backend"))
 os.environ["TEST_MODE"] = "1"
 os.environ["MASTER_KEY"] = "7nQheyKjedj1oYnZhCq3PqxMRCl9E5rdteunHkQzGBQ="
 
+# Mock OCR dependencies BEFORE importing document module
+# This ensures OCR_AVAILABLE = True and allows patching of pytesseract/PIL
+import types
+
+# Mock pytesseract
+pytesseract_mock = types.ModuleType("pytesseract")
+pytesseract_mock.image_to_string = MagicMock()
+sys.modules["pytesseract"] = pytesseract_mock
+
+# Mock pdf2image
+pdf2image_mock = types.ModuleType("pdf2image")
+pdf2image_mock.convert_from_path = MagicMock()
+sys.modules["pdf2image"] = pdf2image_mock
+
+# Mock PIL and its submodules (pptx imports PIL.ImageFont, etc.)
+pil_mock = types.ModuleType("PIL")
+pil_mock.__version__ = "10.0.0"  # pypdf checks this
+for submodule in ["Image", "ImageFont", "ImageDraw", "ImageFilter", "ImageColor"]:
+    sub_mod = types.ModuleType(f"PIL.{submodule}")
+    setattr(pil_mock, submodule, sub_mod)
+    sys.modules[f"PIL.{submodule}"] = sub_mod
+sys.modules["PIL"] = pil_mock
+
+# Now import document - it will see pytesseract and PIL as available
 from document import (
     extract_text,
     _extract_plain_text,
@@ -123,32 +147,34 @@ class PDFOCRBranchTests(unittest.TestCase):
         self.assertIn("corrupt PDF", result)
 
     @patch("document.OCR_AVAILABLE", True)
-    @patch("pdf2image.convert_from_path")
-    @patch("document.pytesseract.image_to_string")
     @patch("document.PdfReader")
-    def test_extract_pdf_ocr_handles_exception_per_page(self, mock_pdf_reader, mock_ocr, mock_convert):
+    def test_extract_pdf_ocr_handles_exception_per_page(self, mock_pdf_reader):
         """_extract_pdf_ocr continues on per-page exception (lines 133-134)."""
         from document import _extract_pdf_ocr
 
-        mock_image1 = MagicMock()
-        mock_image2 = MagicMock()
-        mock_convert.return_value = [mock_image1, mock_image2]
+        # Mock pdf2image.convert_from_path inside the function
+        with patch("pdf2image.convert_from_path") as mock_convert:
+            mock_image1 = MagicMock()
+            mock_image2 = MagicMock()
+            mock_convert.return_value = [mock_image1, mock_image2]
 
-        # First page succeeds, second raises exception
-        mock_ocr.side_effect = ["Page 1 text", Exception("OCR failed")]
+            # Mock pytesseract inside document module
+            with patch("document.pytesseract.image_to_string") as mock_ocr:
+                # First page succeeds, second raises exception
+                mock_ocr.side_effect = ["Page 1 text", Exception("OCR failed")]
 
-        # Mock PdfReader for page count
-        mock_reader = MagicMock()
-        mock_reader.pages = [MagicMock(), MagicMock()]
-        mock_pdf_reader.return_value = mock_reader
+                # Mock PdfReader for page count
+                mock_reader = MagicMock()
+                mock_reader.pages = [MagicMock(), MagicMock()]
+                mock_pdf_reader.return_value = mock_reader
 
-        with NamedTemporaryFile(suffix=".pdf") as f:
-            from pypdf import PdfWriter
-            writer = PdfWriter()
-            writer.add_blank_page(width=100, height=100)
-            writer.write(f)
-            f.flush()
-            result = _extract_pdf_ocr(Path(f.name))
+                with NamedTemporaryFile(suffix=".pdf") as f:
+                    from pypdf import PdfWriter
+                    writer = PdfWriter()
+                    writer.add_blank_page(width=100, height=100)
+                    writer.write(f)
+                    f.flush()
+                    result = _extract_pdf_ocr(Path(f.name))
 
         # Should include page 1 but skip page 2
         self.assertIn("Page 1 text", result)

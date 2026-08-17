@@ -6,8 +6,7 @@ from typing import Any
 import httpx
 import litellm
 
-from .base import BaseProvider, ModelInfo
-from .litellm_fallback import REASONING_PREFIX
+from .base import BaseProvider, ModelInfo, parse_litellm_stream_chunk
 
 
 class AnthropicProvider(BaseProvider):
@@ -57,7 +56,7 @@ class AnthropicProvider(BaseProvider):
 
         return models
 
-    async def stream_completion(
+    async def stream_completion(  # noqa: PLR0917
         self,
         model_id: str,
         messages: list[dict],
@@ -88,19 +87,19 @@ class AnthropicProvider(BaseProvider):
             completion_kwargs["api_key"] = effective_key
         if reasoning_effort and reasoning_effort != "none":
             completion_kwargs["reasoning_effort"] = reasoning_effort
+        if kwargs.get("tools"):
+            completion_kwargs["tools"] = kwargs["tools"]
 
         response = await litellm.acompletion(**completion_kwargs)
+        include_metadata = bool(kwargs.get("include_metadata"))
         async for chunk in response:
-            if not chunk.choices:
+            normalized = parse_litellm_stream_chunk(chunk)
+            if normalized is None:
                 continue
-
-            delta = chunk.choices[0].delta
-
-            # Reasoning content (extended thinking) — emits before content
-            rc = getattr(delta, 'reasoning_content', None)
-            if rc:
-                yield REASONING_PREFIX + rc
-
-            content = delta.content or ""
-            if content:
-                yield content
+            if include_metadata:
+                yield normalized
+                continue
+            if normalized.reasoning:
+                yield normalized.reasoning
+            if normalized.text:
+                yield normalized.text

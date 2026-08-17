@@ -4,13 +4,84 @@ Live model discovery - fetches available models from provider APIs.
 import asyncio
 import json
 import logging
+import re
 
 import httpx
 
 from .base import NON_CHAT_MARKERS, ModelInfo, ProviderConfig
 from .inaccessible import is_inaccessible
+from backend.response_events import ModelCapabilities
 
 logger = logging.getLogger(__name__)
+
+
+def _infer_capabilities(model_id: str, provider_id: str, entry: dict | None = None) -> ModelCapabilities:
+    """Infer model capabilities from model ID/provider and optional raw entry data.
+
+    This is a heuristic based on model naming conventions and known provider capabilities.
+    For more accurate capabilities, providers should supply them directly in their model listing.
+    """
+    lower = model_id.lower()
+
+    # Base capabilities from provider
+    capabilities = ModelCapabilities(
+        streaming=True,  # All supported providers stream
+        tools=False,
+        reasoning=False,
+        vision=False,
+        documents=False,
+        citations=False,
+        structured_output=False,
+    )
+
+    # Provider-specific heuristics
+    if provider_id in {"openai", "anthropic", "gemini", "nvidia", "together", "groq", "openrouter", "deepseek", "mistral"}:
+        # These providers generally support tools on most modern models
+        capabilities.tools = True
+
+        # Vision models (common naming patterns)
+        if any(pattern in lower for pattern in ["vision", "gpt-4o", "claude-3", "gemini-1.5", "pixtral", "llava"]):
+            capabilities.vision = True
+
+        # Reasoning models
+        if any(pattern in lower for pattern in ["o1", "o3", "r1", "reasoning", "qwq"]):
+            capabilities.reasoning = True
+
+        # Structured output (newer models)
+        if any(pattern in lower for pattern in ["gpt-4o", "gpt-4.1", "claude-3.5", "gemini-1.5", "mistral-large"]):
+            capabilities.structured_output = True
+
+    elif provider_id == "ollama":
+        # Ollama models - infer from name
+        if any(pattern in lower for pattern in ["vision", "llava", "bakllava", "moondream", "pixtral"]):
+            capabilities.vision = True
+        if any(pattern in lower for pattern in ["hermes", "phi3", "nemotron", "qwen2.5", "llama3.1", "llama3.2", "command-r", "qwq"]):
+            capabilities.tools = True
+        if any(pattern in lower for pattern in ["r1", "qwq", "deepseek-r1"]):
+            capabilities.reasoning = True
+
+    # Check entry metadata for explicit capabilities
+    if entry:
+        # Some providers include capability fields
+        if entry.get("supports_vision") or entry.get("vision"):
+            capabilities.vision = True
+        # Check for tools in various formats: boolean flags or capabilities array
+        entry_tools = entry.get("tools") or entry.get("supports_tools") or entry.get("function_calling")
+        entry_capabilities = entry.get("capabilities", [])
+        if isinstance(entry_capabilities, list) and "tools" in entry_capabilities:
+            entry_tools = True
+        if entry_tools:
+            capabilities.tools = True
+        if entry.get("supports_reasoning") or entry.get("reasoning"):
+            capabilities.reasoning = True
+        # Check for reasoning in capabilities array
+        entry_capabilities = entry.get("capabilities", [])
+        if isinstance(entry_capabilities, list) and "reasoning" in entry_capabilities:
+            capabilities.reasoning = True
+        if entry.get("structured_output") or entry.get("json_mode"):
+            capabilities.structured_output = True
+
+    return capabilities
 
 
 async def fetch_models_from_provider(
@@ -98,6 +169,8 @@ async def fetch_models_from_provider(
                     if is_inaccessible(litellm_id):
                         continue
 
+                    capabilities = _infer_capabilities(model_id, config.provider_id, entry)
+
                     all_models.append(ModelInfo(
                         id=f"{config.provider_id}::{litellm_id}",
                         name=name,
@@ -106,6 +179,7 @@ async def fetch_models_from_provider(
                         litellm_id=litellm_id,
                         description=description,
                         model_id=model_id,
+                        capabilities=capabilities,
                     ))
 
                 # Follow pagination
@@ -154,22 +228,29 @@ async def fetch_ollama_models(base_url: str = "http://localhost:11434") -> list[
     endpoint = f"{base_url.rstrip('/')}/api/tags"
     models: list[ModelInfo] = []
 
-    # Try direct connection first
-    try:
+    async def _fetch_and_process() -> list[ModelInfo]:
         async with httpx.AsyncClient(timeout=2.5) as client:
             response = await client.get(endpoint)
             response.raise_for_status()
+            result: list[ModelInfo] = []
             for item in response.json().get("models", []):
                 if isinstance(item.get("name"), str) and item["name"]:
                     name = item["name"]
-                    models.append(ModelInfo(
-                        id=f"ollama::{name}",
+                    capabilities = _infer_capabilities(name, "ollama", item)
+                    litellm_id = f"ollama/{name}"
+                    result.append(ModelInfo(
+                        id=f"ollama::{litellm_id}",
                         name=name,
                         provider_id="ollama",
                         provider_label="Ollama",
-                        litellm_id=f"ollama/{name}",
+                        litellm_id=litellm_id,
+                        capabilities=capabilities,
                     ))
-        return models
+            return result
+
+    # Try direct connection first
+    try:
+        return await _fetch_and_process()
     except httpx.HTTPError as exc:
         logger.debug("Ollama not reachable at %s (%s); attempting auto-start", endpoint, exc)
 
@@ -181,21 +262,7 @@ async def fetch_ollama_models(base_url: str = "http://localhost:11434") -> list[
     for delay in backoff_delays:
         await asyncio.sleep(delay)
         try:
-            async with httpx.AsyncClient(timeout=2.0) as client:
-                response = await client.get(endpoint)
-                response.raise_for_status()
-                models = []
-                for item in response.json().get("models", []):
-                    if isinstance(item.get("name"), str) and item["name"]:
-                        name = item["name"]
-                        models.append(ModelInfo(
-                            id=f"ollama::{name}",
-                            name=name,
-                            provider_id="ollama",
-                            provider_label="Ollama",
-                            litellm_id=f"ollama/{name}",
-                        ))
-                return models
+            return await _fetch_and_process()
         except httpx.HTTPError as exc:
             logger.debug("Ollama retry failed (delay=%ss): %s", delay, exc)
             continue

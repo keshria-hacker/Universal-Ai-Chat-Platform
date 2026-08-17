@@ -12,21 +12,40 @@ Tests cover:
 """
 import os
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "backend"))
+
+# Point at an isolated throwaway database BEFORE importing any backend module.
+# database.py builds its engine at import time from settings.DATABASE_URL, whose
+# default is the real history/nexus.db. Without this override these tests would
+# wipe the developer's actual account, chats, and stored provider keys.
+TEST_DB_PATH = Path(tempfile.gettempdir()) / "nexus_test_api.db"
+if TEST_DB_PATH.exists():
+    TEST_DB_PATH.unlink()
+os.environ["DATABASE_URL"] = f"sqlite+aiosqlite:///{TEST_DB_PATH}"
+
+# Add PROJECT ROOT (not backend) so package-style imports work like backend.database
+sys.path.insert(0, str(ROOT))
 
 # Enable test mode
 os.environ["TEST_MODE"] = "1"
 os.environ["MASTER_KEY"] = "7nQheyKjedj1oYnZhCq3PqxMRCl9E5rdteunHkQzGBQ="
 
+# Now import backend modules - they will see the test DATABASE_URL
+from backend.config import reset_settings, settings as config_settings
+reset_settings()
+config_settings.DATABASE_URL = os.environ["DATABASE_URL"]
+
+from backend.database import reset_engine_for_testing, reset_db, AsyncSessionLocal
+reset_engine_for_testing()
+
 import api
 from api import sse_event, MAGIC_AVAILABLE
-from database import reset_db, AsyncSessionLocal
 from prompt_injection import validate_messages
 from ratelimit import EXEMPT_PATHS, ENDPOINT_LIMITS
 from schemas import ChatStreamRequest
@@ -230,12 +249,13 @@ class ChatStreamTests(unittest.IsolatedAsyncioTestCase):
     def test_validate_model_exists(self):
         """Chat stream should validate model exists before streaming."""
         from api import chat_stream
+        from backend.schemas import ChatStreamRequest as BackendChatStreamRequest
         # Function exists and accepts correct parameters
         import inspect
         sig = inspect.signature(chat_stream)
         self.assertIn("payload", sig.parameters)
         self.assertIn("db", sig.parameters)
-        self.assertEqual(sig.parameters["payload"].annotation, ChatStreamRequest)
+        self.assertEqual(sig.parameters["payload"].annotation, BackendChatStreamRequest)
 
     @patch("api.llm._resolve_model")
     async def test_chat_stream_rejects_unknown_model(self, mock_resolve):
@@ -551,7 +571,7 @@ class ProviderKeyDeletionTests(unittest.IsolatedAsyncioTestCase):
         mock_list_providers.return_value = {"openai": {"local": False}}
 
         from api import delete_provider_key
-        from models import ProviderKey
+        from backend.models import ProviderKey
 
         # Add a key to DB
         db_key = ProviderKey(provider_id="openai", api_key="sk-test")

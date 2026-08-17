@@ -7,7 +7,7 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 
-import llm
+from backend import llm
 
 
 class ModelSelectionTests(unittest.TestCase):
@@ -215,7 +215,7 @@ class ModelSelectionTests(unittest.TestCase):
                 raise httpx.ConnectError("refused")
 
         with patch.object(httpx, "AsyncClient", lambda *a, **k: FakeClient()), \
-                patch("providers.ollama._try_start_ollama") as start_mock:
+                patch("backend.providers.ollama._try_start_ollama") as start_mock:
             models = asyncio.run(llm.list_ollama_models())
 
         self.assertEqual(models, [])

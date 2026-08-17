@@ -7,6 +7,8 @@ import { showToast, showError } from '../../shared/toast.js';
 import { escapeHtml } from '../../shared/utils.js';
 import { STORAGE_KEYS } from '../../shared/constants.js';
 
+console.log('[Module] auth.js loaded');
+
 let elements = {};
 /** @type {AbortController|null} — allows cleanup of popup listeners on re-init */
 let _popupController = null;
@@ -270,6 +272,8 @@ export async function initializeAuth() {
   const maxRetries = 3;
   let lastError;
 
+  console.log('[Auth] Starting initializeAuth()');
+
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       if (attempt === 1) {
@@ -280,14 +284,27 @@ export async function initializeAuth() {
         elements.authLoadingSub.textContent = 'Still trying…';
       }
 
+      console.log(`[Auth] Attempt ${attempt}: Fetching /api/auth/status`);
+
       const controller = new AbortController();
       const timeoutMs = attempt < maxRetries ? 4000 : 6000;
       const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
       const response = await fetch(`${getApiBaseUrl()}/auth/status`, { signal: controller.signal });
       clearTimeout(timeoutId);
 
-      if (!response.ok) throw new Error('Authentication service is unavailable');
+      console.log(`[Auth] Response status: ${response.status}`);
+
+      if (response.status === 401) {
+        // User is not authenticated, show login screen
+        console.log('[Auth] 401 Unauthorized, showing login screen');
+        status = { authenticated: false, registration_open: false };
+        lastError = null;
+        break;
+      } else if (!response.ok) {
+        throw new Error('Authentication service is unavailable');
+      }
       status = await response.json();
+      console.log('[Auth] Response:', status);
       lastError = null;
       break;
     } catch (err) {
@@ -331,6 +348,7 @@ export async function initializeAuth() {
 
   // Transition to auth form
   elements.authLoading.classList.add('hidden');
+  elements.authLoadingRetry.classList.add('hidden');
   const registering = status.registration_open;
   elements.authTitle.textContent = registering ? 'Create your Nexus account' : 'Sign in to Nexus';
   elements.authDescription.textContent = registering

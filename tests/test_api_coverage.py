@@ -228,20 +228,34 @@ class RefreshModelsTests(unittest.TestCase):
         """Fetch error returns success=False with count=0 (lines 247-253)."""
         import asyncio
         from api import refresh_provider_models
-        from schemas import RefreshModelsOut
+        from backend.schemas import RefreshModelsOut
+        from providers.base import ProviderConfig
 
         mock_db = _make_mock_db()
 
-        with patch("api.llm.resolve_api_key", return_value="test-key"):
-            with patch("api.llm.fetch_models_from_provider", side_effect=Exception("Network error")):
-                async def test():
-                    result = await refresh_provider_models("openai", mock_db)
-                    self.assertIsInstance(result, RefreshModelsOut)
-                    self.assertFalse(result.success)
-                    self.assertEqual(result.count, 0)
-                    self.assertEqual(result.models, [])
+        mock_config = MagicMock(spec=ProviderConfig)
+        mock_config.local = False
+        mock_config.label = "OpenAI"
+        mock_config.model_endpoint = "https://api.openai.com/v1/models"
+        mock_config.auth_type = "bearer"
+        mock_config.auth_header_name = "Authorization"
+        mock_config.query_key = None
+        mock_config.json_path = "data"
+        mock_config.id_field = "id"
+        mock_config.strip_prefix = ""
+        mock_config.extra_headers = None
 
-                asyncio.run(test())
+        with patch("api.llm.registry.get_config", return_value=mock_config):
+            with patch("api.llm.resolve_api_key", return_value="test-key"):
+                with patch("api.llm.fetch_models_from_provider", side_effect=Exception("Network error")):
+                    async def test():
+                        result = await refresh_provider_models("openai", mock_db)
+                        self.assertIsInstance(result, RefreshModelsOut)
+                        self.assertFalse(result.success)
+                        self.assertEqual(result.count, 0)
+                        self.assertEqual(result.models, [])
+
+                    asyncio.run(test())
 
 
 if __name__ == "__main__":
