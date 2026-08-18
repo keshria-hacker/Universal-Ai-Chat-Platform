@@ -26,7 +26,9 @@ sys.path.insert(0, str(ROOT))
 
 # Enable test mode
 os.environ["TEST_MODE"] = "1"
-os.environ["MASTER_KEY"] = "7nQheyKjedj1oYnZhCq3PqxMRCl9E5rdteunHkQzGBQ="
+from cryptography.fernet import Fernet
+_test_key = Fernet.generate_key().decode()
+os.environ["MASTER_KEY"] = _test_key
 
 # Use a temporary directory for ChromaDB in tests
 import tempfile

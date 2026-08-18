@@ -83,6 +83,12 @@ start_debug.py
 frontend/js/test_*.js
 frontend/test_*.html
 
+# --- Test results / artifacts ---
+test-results/
+screenshots/
+*.trace.zip
+playwright-report/
+
 # --- Package lock files (if not using npm) ---
 package-lock.json
 package.json
