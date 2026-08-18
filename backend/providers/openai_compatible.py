@@ -120,10 +120,8 @@ class OpenAICompatibleProvider(BaseProvider):
             if include_metadata:
                 yield normalized
                 continue
-            if normalized.reasoning:
-                yield normalized.reasoning
-            if normalized.text:
-                yield normalized.text
+            # Yield the full ProviderStreamChunk to preserve reasoning, tool_calls, citations, etc.
+            yield normalized
 
 
 class OpenAIProvider(OpenAICompatibleProvider):
