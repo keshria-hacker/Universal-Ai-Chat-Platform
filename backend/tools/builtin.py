@@ -10,8 +10,24 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
+from backend.config import settings
 from backend.tools.registry import registry
 from backend.tools.schemas import ToolDefinition
+
+
+def _get_workspace_root() -> Path:
+    """Get the configured workspace root, resolved to absolute path."""
+    return settings.WORKSPACE_ROOT.resolve()
+
+
+def _is_path_allowed(target: Path) -> bool:
+    """Check if a path is within the allowed workspace root."""
+    workspace_root = _get_workspace_root()
+    try:
+        target.resolve().relative_to(workspace_root)
+        return True
+    except ValueError:
+        return False
 
 
 # -----------------------------------------------------------------------------
@@ -65,6 +81,10 @@ web_search_tool = ToolDefinition(
     },
     handler=web_search_handler,
     capabilities=["web_access"],
+    category="web",
+    safety_level="safe",
+    read_only=True,
+    requires_confirmation=False,
 )
 
 
@@ -73,19 +93,24 @@ web_search_tool = ToolDefinition(
 # -----------------------------------------------------------------------------
 async def read_file_handler(path: str) -> dict[str, Any]:
     """Read a file from the local filesystem."""
-    # Security: Restrict to allowed directories
-    allowed_dirs = [Path.cwd(), Path.home() / "Documents", Path("/tmp"), Path(tempfile.gettempdir())]
-    target = Path(path).resolve()
-    
-    if not any(target.is_relative_to(d) for d in allowed_dirs if d.exists()):
-        return {"error": f"Access denied: path outside allowed directories: {path}"}
-    
+    workspace_root = _get_workspace_root()
+
+    # Resolve path relative to workspace root if not absolute
+    if os.path.isabs(path):
+        target = Path(path).resolve()
+    else:
+        target = (workspace_root / path).resolve()
+
+    # Security: Ensure target is within workspace root
+    if not _is_path_allowed(target):
+        return {"error": f"Access denied: path outside workspace root: {path}"}
+
     if not target.exists():
         return {"error": f"File not found: {path}"}
-    
+
     if not target.is_file():
         return {"error": f"Not a file: {path}"}
-    
+
     try:
         content = target.read_text(encoding="utf-8")
         return {"content": content, "path": str(target), "size": len(content)}
@@ -106,23 +131,33 @@ read_file_tool = ToolDefinition(
     },
     handler=read_file_handler,
     capabilities=["file_access"],
+    category="file",
+    safety_level="safe",
+    read_only=True,
+    requires_confirmation=False,
 )
 
 
 async def list_files_handler(path: str = ".", pattern: str = "*") -> dict[str, Any]:
     """List files in a directory."""
-    allowed_dirs = [Path.cwd(), Path.home() / "Documents", Path("/tmp"), Path(tempfile.gettempdir())]
-    target = Path(path).resolve()
-    
-    if not any(target.is_relative_to(d) for d in allowed_dirs if d.exists()):
-        return {"error": f"Access denied: path outside allowed directories: {path}"}
-    
+    workspace_root = _get_workspace_root()
+
+    # Resolve path relative to workspace root if not absolute
+    if os.path.isabs(path):
+        target = Path(path).resolve()
+    else:
+        target = (workspace_root / path).resolve()
+
+    # Security: Ensure target is within workspace root
+    if not _is_path_allowed(target):
+        return {"error": f"Access denied: path outside workspace root: {path}"}
+
     if not target.exists():
         return {"error": f"Directory not found: {path}"}
-    
+
     if not target.is_dir():
         return {"error": f"Not a directory: {path}"}
-    
+
     files = []
     for item in target.glob(pattern):
         rel = item.relative_to(target)
@@ -131,7 +166,7 @@ async def list_files_handler(path: str = ".", pattern: str = "*") -> dict[str, A
             "type": "directory" if item.is_dir() else "file",
             "size": item.stat().st_size if item.is_file() else None,
         })
-    
+
     return {"files": files, "path": str(target)}
 
 
@@ -148,6 +183,10 @@ list_files_tool = ToolDefinition(
     },
     handler=list_files_handler,
     capabilities=["file_access"],
+    category="file",
+    safety_level="safe",
+    read_only=True,
+    requires_confirmation=False,
 )
 
 
@@ -158,28 +197,34 @@ async def execute_code_handler(code: str, language: str = "python", timeout: int
     """Execute code in a sandboxed environment."""
     if language.lower() != "python":
         return {"error": f"Unsupported language: {language}. Only Python is currently supported."}
-    
-    # Create a temporary file
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
+
+    workspace_root = _get_workspace_root()
+
+    # Create a temporary file within the workspace root for isolation
+    temp_dir = workspace_root / ".tmp_code_exec"
+    temp_dir.mkdir(exist_ok=True)
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False, dir=temp_dir) as f:
         f.write(code)
         temp_path = f.name
-    
+
     try:
-        # Run with restricted environment
+        # Run with restricted environment, working directory set to workspace root
         proc = await asyncio.create_subprocess_exec(
             sys.executable, temp_path,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
+            cwd=str(workspace_root),
             env={**os.environ, "PYTHONPATH": "", "PYTHONDONTWRITEBYTECODE": "1"},
         )
-        
+
         try:
             stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
         except asyncio.TimeoutError:
             proc.kill()
             await proc.wait()
             return {"error": f"Code execution timed out after {timeout}s"}
-        
+
         return {
             "stdout": stdout.decode("utf-8", errors="replace"),
             "stderr": stderr.decode("utf-8", errors="replace"),
@@ -207,6 +252,10 @@ execute_code_tool = ToolDefinition(
     },
     handler=execute_code_handler,
     capabilities=["code_execution"],
+    category="code",
+    safety_level="caution",
+    read_only=False,
+    requires_confirmation=False,
 )
 
 

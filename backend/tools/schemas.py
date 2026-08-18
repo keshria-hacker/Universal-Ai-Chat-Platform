@@ -15,6 +15,11 @@ class ToolDefinition(BaseModel):
     parameters: dict[str, Any]
     handler: Callable[..., Any] | None = Field(default=None, exclude=True)
     capabilities: list[str] = Field(default_factory=list)
+    # Phase 7: Capability metadata (optional, defaults to safe values)
+    safety_level: str = "safe"  # "safe", "caution", "destructive"
+    read_only: bool = True
+    category: str = "general"  # "web", "file", "code", "general"
+    requires_confirmation: bool = False
 
 
 class ToolCall(BaseModel):
@@ -36,6 +41,25 @@ class ToolResult(BaseModel):
     data: dict[str, Any] | None = None
     error: str | None = None
     is_error: bool = False
+
+    def __init__(self, **data):
+        # Ensure content is always a string (never None)
+        if "content" in data and data["content"] is None:
+            data["content"] = ""
+        super().__init__(**data)
+
+    @property
+    def success(self) -> bool:
+        """Return True if the tool execution was successful."""
+        return not self.is_error
+
+    def model_dump_for_llm(self) -> dict[str, Any]:
+        """Return a dict suitable for sending to the LLM as a tool result message."""
+        return {
+            "role": "tool",
+            "tool_call_id": self.tool_call_id,
+            "content": self.content,
+        }
 
 
 def validate_tool_arguments(definition: ToolDefinition, arguments: dict[str, Any]) -> tuple[bool, str | None]:

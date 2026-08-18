@@ -481,8 +481,41 @@ async def stream_response_events(
         if model_info and model_info.capabilities and model_info.capabilities.tools:
             enabled_tools = tool_registry.get_enabled()
             if enabled_tools:
-                from backend.tools.schemas import tool_definition_to_openai_function
-                tools = [tool_definition_to_openai_function(t) for t in enabled_tools]
+                # Phase 7: Capability orchestration - filter tools based on request
+                # Get the last user message for capability decision
+                last_user_msg = ""
+                for msg in reversed(current_messages):
+                    if msg.get("role") == "user":
+                        last_user_msg = msg.get("content", "")
+                        break
+                if last_user_msg:
+                    # Run Phase 6 analysis
+                    from backend.response_intelligence import analyze_request, capability_decide
+                    try:
+                        guidance = await analyze_request(
+                            messages=current_messages,
+                            model_id=model_id,
+                            temperature=temperature,
+                            chat_id=None,  # Could be enhanced with actual chat_id
+                            db=db,
+                        )
+                        # Run Phase 7 capability decision
+                        decision = capability_decide(
+                            user_message=last_user_msg,
+                            enabled_tools=enabled_tools,
+                            guidance=guidance,
+                        )
+                        # Use filtered tools from capability decision
+                        from backend.tools.schemas import tool_definition_to_openai_function
+                        tools = [tool_definition_to_openai_function(t) for t in decision.filtered_tools]
+                    except Exception:
+                        # On any error, fall back to all enabled tools (conservative)
+                        from backend.tools.schemas import tool_definition_to_openai_function
+                        tools = [tool_definition_to_openai_function(t) for t in enabled_tools]
+                else:
+                    # No user message, fall back to all enabled tools
+                    from backend.tools.schemas import tool_definition_to_openai_function
+                    tools = [tool_definition_to_openai_function(t) for t in enabled_tools]
         provider_stream = provider.stream_completion(
             model_id=litellm_id,
             messages=current_messages,

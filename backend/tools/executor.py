@@ -85,6 +85,8 @@ class ToolExecutor:
             duration = time.time() - start_time
             logger.info(f"Tool '{tool_call.name}' executed in {duration:.2f}s")
 
+            # Check if handler returned an error dict
+            is_handler_error = isinstance(result, dict) and "error" in result
             content = str(result)
             if len(content) > self.max_result_size:
                 content = content[:self.max_result_size] + f"\n... [truncated, {len(result) - self.max_result_size} chars omitted]"
@@ -94,7 +96,8 @@ class ToolExecutor:
                 name=tool_call.name,
                 content=content,
                 data=result if isinstance(result, dict) else None,
-                is_error=False,
+                is_error=is_handler_error,
+                error=result.get("error") if is_handler_error else None,
             )
 
         except asyncio.TimeoutError:

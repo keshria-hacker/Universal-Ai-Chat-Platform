@@ -169,10 +169,33 @@ class OllamaProvider(BaseProvider):
                             "output_tokens": chunk.get("eval_count"),
                         }
                         usage = {key: value for key, value in usage.items() if isinstance(value, int)}
-                        # Check for tool calls in the message
-                        tool_calls = chunk.get("message", {}).get("tool_calls", [])
-                        if tool_calls:
+                        # Check for tool calls in the message - normalize Ollama format to OpenAI format
+                        ollama_tool_calls = chunk.get("message", {}).get("tool_calls", [])
+                        tool_calls = None
+                        if ollama_tool_calls:
                             yielded_content = True  # Tool calls count as content
+                            # Normalize Ollama tool call format to OpenAI format
+                            # Ollama: {"id": "...", "function": {"index": 0, "name": "...", "arguments": {...}}}
+                            # OpenAI: {"id": "...", "type": "function", "function": {"name": "...", "arguments": "..."}}
+                            tool_calls = []
+                            for tc in ollama_tool_calls:
+                                func = tc.get("function", {})
+                                # Arguments might be a dict (Ollama) or string (OpenAI)
+                                args = func.get("arguments", {})
+                                if isinstance(args, dict):
+                                    args = json.dumps(args)
+                                normalized = {
+                                    "id": tc.get("id"),
+                                    "type": "function",
+                                    "function": {
+                                        "name": func.get("name"),
+                                        "arguments": args,
+                                    },
+                                }
+                                # Include index if present (for streaming)
+                                if "index" in func:
+                                    normalized["index"] = func["index"]
+                                tool_calls.append(normalized)
                         if content or raw_finish or usage or tool_calls:
                             # Determine finish reason - Ollama uses "stop" even for tool calls
                             finish_reason_val = None
@@ -186,7 +209,7 @@ class OllamaProvider(BaseProvider):
 
                             yield ProviderStreamChunk(
                                 text=content or None,
-                                tool_calls=tool_calls if tool_calls else None,
+                                tool_calls=tool_calls,
                                 finish_reason=finish_reason_val,
                                 usage=UsageInfo(**usage) if usage else None,
                                 metadata={"provider_finish_reason": str(raw_finish)} if raw_finish else None,

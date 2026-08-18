@@ -13,6 +13,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Default workspace root is the project root (parent of backend)
+DEFAULT_WORKSPACE_ROOT = BASE_DIR
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=BASE_DIR / ".env", env_file_encoding="utf-8", extra="ignore")
@@ -42,6 +45,11 @@ class Settings(BaseSettings):
         "pdf", "docx", "txt", "csv", "xlsx", "pptx", "json", "html", "xml",
         "py", "java", "js", "c", "cpp", "cs", "go", "rs", "php", "sql", "r", "md",
     }
+
+    # --- Workspace ---
+    # Workspace root for file system operations (list_files, read_file, execute_code)
+    # Defaults to project root. Can be overridden via WORKSPACE_ROOT env var.
+    WORKSPACE_ROOT: Path = DEFAULT_WORKSPACE_ROOT
 
     # --- Default generation parameters ---
     # DEFAULT_MODEL is intentionally unused — see llm.default_model_id() which
