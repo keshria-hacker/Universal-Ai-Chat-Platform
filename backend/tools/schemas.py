@@ -42,6 +42,25 @@ class ToolResult(BaseModel):
     error: str | None = None
     is_error: bool = False
 
+    def __init__(self, **data):
+        # Ensure content is always a string (never None)
+        if "content" in data and data["content"] is None:
+            data["content"] = ""
+        super().__init__(**data)
+
+    @property
+    def success(self) -> bool:
+        """Return True if the tool execution was successful."""
+        return not self.is_error
+
+    def model_dump_for_llm(self) -> dict[str, Any]:
+        """Return a dict suitable for sending to the LLM as a tool result message."""
+        return {
+            "role": "tool",
+            "tool_call_id": self.tool_call_id,
+            "content": self.content,
+        }
+
 
 def validate_tool_arguments(definition: ToolDefinition, arguments: dict[str, Any]) -> tuple[bool, str | None]:
     try:

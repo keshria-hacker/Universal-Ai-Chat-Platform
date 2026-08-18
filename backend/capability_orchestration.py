@@ -52,6 +52,7 @@ EXPLICIT_TOOL_KEYWORDS = {
     "read_file": [
         "read file", "read the file", "show file", "show me the file",
         "cat file", "view file", "open file",
+        "read ", "view ", "open ", "cat ",  # Matches "Read backend/api.py", "View file.py", etc.
     ],
     "web_search": [
         "search web", "search the web", "web search", "google", "look up",
