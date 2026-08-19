@@ -15,6 +15,7 @@ from backend import llm
 from backend import websearch
 from backend.database import AsyncSessionLocal, get_db
 from backend.document import extract_text, truncate_preview
+from backend.context_manager import create_context_manager
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile
 from fastapi.responses import StreamingResponse
 from backend.models import Chat, Message, ProviderKey, UploadedFile
@@ -34,6 +35,7 @@ from backend.schemas import (
     ProviderStatus,
     RefreshModelsOut,
 )
+from backend.providers import _resolve_model as resolve_model
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -451,20 +453,41 @@ async def chat_stream(  # noqa: PLR0912
         if files and messages:
             last_user_msg = messages[-1]["content"]
             rag_chunks = retrieve_relevant_chunks(last_user_msg, payload.file_ids, top_k=RAG_TOP_K)
+            # Inject RAG chunks as individual system messages (Phase 9 P0)
             if rag_chunks:
-                file_context = "\n\n".join(
-                    f"--- From {c['filename']} ---\n{c['text']}" for c in rag_chunks
-                )
+                for chunk in rag_chunks:
+                    messages.insert(-1, {
+                        "role": "system",
+                        "content": f"[RAG context] From {chunk['filename']} (relevance: {chunk['score']:.2f}):\n{chunk['text']}"
+                    })
             else:
-                # Fallback: use full extracted text
-                file_context = "\n\n".join(
-                    f"--- {f.filename} ---\n{f.extracted_text}" for f in files if f.extracted_text
-                )
-            if file_context:
-                messages[-1]["content"] = f"{messages[-1]['content']}\n\n[Attached files]\n{file_context}"
+                # Fallback: use full extracted text as a single system message
+                for f in files:
+                    if f.extracted_text:
+                        messages.insert(-1, {
+                            "role": "system",
+                            "content": f"[RAG context] From {f.filename}:\n{f.extracted_text}"
+                        })
     if web_context and messages:
-        # Inject as a system message so the model sees the sources.
-        messages.insert(0, {"role": "system", "content": web_context})
+        # Parse the formatted web context string into individual results (Phase 9 P0)
+        # Example line: "- Title (URL): Snippet"
+        for line in web_context.split("\n"):
+            if not line.startswith("-"):
+                continue
+            # Extract title, URL, and snippet
+            parts = line[2:].split(": ", 1)
+            if len(parts) != 2:
+                continue
+            title_url, snippet = parts
+            title_url_parts = title_url.split(" (", 1)
+            if len(title_url_parts) != 2:
+                continue
+            title, url = title_url_parts
+            url = url.rstrip(")")
+            messages.insert(-1, {
+                "role": "system",
+                "content": f"[Web search result] {title} ({url}):\n{snippet}"
+            })
 
     # --- Phase 6: Response Intelligence ---
     # Analyze request and inject guidance as system prompt additions.
@@ -490,6 +513,25 @@ async def chat_stream(  # noqa: PLR0912
                 logger.debug("Injected %d response intelligence guidance additions", len(system_additions))
         except Exception as exc:  # noqa: BLE001 — never break chat for guidance errors
             logger.warning("Response intelligence analysis failed: %s", exc)
+
+    # --- Phase 9 P0: Context Token Budget & Safe Truncation ---
+    # Truncate conversation history to fit model's context window while
+    # preserving system prompts, RAG context, web search results, and tool messages.
+    model_info = resolve_model(payload.model)
+    if model_info:
+        context_manager = create_context_manager(model_info)
+        truncation_result = context_manager.prepare_messages(messages)
+        if truncation_result.truncated:
+            logger.info(
+                "Context truncated for chat %s: removed %d messages, "
+                "%d -> %d tokens (%.1f%% utilization)",
+                chat.id,
+                truncation_result.removed_message_count,
+                truncation_result.original_token_count,
+                truncation_result.final_token_count,
+                truncation_result.utilization_pct,
+            )
+        messages = truncation_result.messages
 
     # 3. Stream the assistant's reply, persisting user + assistant messages atomically
     #    inside the generator so a client disconnect or stream error never leaves
