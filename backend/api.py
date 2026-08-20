@@ -13,6 +13,7 @@ from pathlib import Path
 
 from backend import llm
 from backend import websearch
+from backend.context_manager import create_context_manager
 from backend.database import AsyncSessionLocal, get_db
 from backend.document import extract_text, truncate_preview
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile
@@ -490,6 +491,24 @@ async def chat_stream(  # noqa: PLR0912
                 logger.debug("Injected %d response intelligence guidance additions", len(system_additions))
         except Exception as exc:  # noqa: BLE001 — never break chat for guidance errors
             logger.warning("Response intelligence analysis failed: %s", exc)
+
+    # --- Phase 9 P0: Safe Context Truncation ---
+    # Apply token budgeting and safe context truncation after Phase 6 intelligence injection
+    # but before provider routing and content compression
+    try:
+        context_manager = create_context_manager(model_info)
+        truncation_result = context_manager.prepare_messages(messages)
+        if truncation_result.truncated:
+            logger.info("Context truncated for chat %s: removed %d messages, %d -> %d tokens (%.1f%% utilization)",
+                        chat.id if 'chat' in locals() else 'unknown',
+                        truncation_result.removed_message_count,
+                        truncation_result.original_token_count,
+                        truncation_result.final_token_count,
+                        truncation_result.utilization_pct)
+        messages = truncation_result.messages
+    except Exception as exc:
+        logger.warning("Context manager failed: %s", exc)
+        # Continue with original messages if context manager fails
 
     # 3. Stream the assistant's reply, persisting user + assistant messages atomically
     #    inside the generator so a client disconnect or stream error never leaves
