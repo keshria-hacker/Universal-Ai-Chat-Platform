@@ -8,7 +8,9 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 
 os.environ["TEST_MODE"] = "1"
-os.environ["MASTER_KEY"] = "7nQheyKjedj1oYnZhCq3PqxMRCl9E5rdteunHkQzGBQ="
+from cryptography.fernet import Fernet
+_test_key = Fernet.generate_key().decode()
+os.environ["MASTER_KEY"] = _test_key
 
 import backend.providers as providers  # noqa: E402
 from backend.providers.base import ProviderStreamChunk  # noqa: E402

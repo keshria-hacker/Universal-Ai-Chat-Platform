@@ -15,8 +15,14 @@ from unittest.mock import AsyncMock, MagicMock, patch
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "backend"))
 
+# Enable test mode
 os.environ["TEST_MODE"] = "1"
-os.environ["MASTER_KEY"] = "7nQheyKjedj1oYnZhCq3PqxMRCl9E5rdteunHkQzGBQ="
+import base64
+from cryptography.fernet import Fernet
+
+# Generate test master key dynamically - never hardcode
+_test_key = Fernet.generate_key().decode()
+os.environ["MASTER_KEY"] = _test_key
 
 
 # Import the required classes

@@ -10,16 +10,20 @@ import asyncio
 import json
 import os
 import sys
+import base64
 import unittest
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
+from cryptography.fernet import Fernet
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 
 # Enable test mode
 os.environ["TEST_MODE"] = "1"
-os.environ["MASTER_KEY"] = "7nQheyKjedj1oYnZhCq3PqxMRCl9E5rdteunHkQzGBQ="
+# Generate a test master key dynamically - never hardcode
+_test_key = Fernet.generate_key().decode()
+os.environ["MASTER_KEY"] = _test_key
 
 from backend.providers import stream_response_events
 from backend.providers.base import ModelInfo, ProviderConfig, ProviderStreamChunk

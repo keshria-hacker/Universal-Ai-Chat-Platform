@@ -27,7 +27,9 @@ sys.path.insert(0, str(ROOT / "backend"))
 # Enable test mode with file-based database BEFORE importing ANY backend modules
 # Using in-memory DB causes issues because each connection gets a different DB
 os.environ["TEST_MODE"] = "1"
-os.environ["MASTER_KEY"] = "7nQheyKjedj1oYnZhCq3PqxMRCl9E5rdteunHkQzGBQ="
+from cryptography.fernet import Fernet
+_test_key = Fernet.generate_key().decode()
+os.environ["MASTER_KEY"] = _test_key
 # Use file-based test database in the OS temp dir so the repo root stays clean
 # (an earlier version wrote test_auth.db into the project root).
 test_db_path = Path(tempfile.gettempdir()) / "nexus_test_auth.db"

@@ -10,7 +10,9 @@ from pathlib import Path
 
 # Enable test mode to disable rate limiting and set test master key
 os.environ["TEST_MODE"] = "1"
-os.environ["MASTER_KEY"] = "7nQheyKjedj1oYnZhCq3PqxMRCl9E5rdteunHkQzGBQ="
+from cryptography.fernet import Fernet
+_test_key = Fernet.generate_key().decode()
+os.environ["MASTER_KEY"] = _test_key
 
 ROOT = Path(__file__).resolve().parents[2]
 # Add PROJECT ROOT (not backend) so package-style imports work
