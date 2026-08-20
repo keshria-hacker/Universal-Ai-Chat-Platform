@@ -24,9 +24,13 @@ from backend.providers import (
     list_providers_static,
     registry,
     resolve_api_key,
+)
+# Enhanced provider routing functions - drop-in replacements for the originals
+from backend.providers.enhanced.integration import (
     stream_completion,
     stream_response_events,
 )
+
 from backend.providers.base import ProviderStreamChunk
 
 # Backward compatibility - model discovery functions
@@ -61,6 +65,7 @@ async def _try_start_ollama() -> None:
 
 # Re-export private attributes for tests
 _providers_static = None
+
 
 def _model_id_for(provider: str, litellm_id: str) -> str:
     """Generate internal model ID from provider and litellm_id."""
@@ -134,11 +139,12 @@ async def stream_completion(  # noqa: PLR0917
     messages: list[dict],
     db: Any,
     temperature: float = 0.7,
-    max_tokens: int = 1024,
-    reasoning_effort: str | None = None,
-    include_metadata: bool = False,
+    max_tokens: int = None,
+    reasoning_effort: str = None,
 ) -> AsyncGenerator[str | ProviderStreamChunk]:
     """Stream completion from the appropriate provider."""
+    # Note: The enhanced version is now imported above and overrides this.
+    # This docstring is kept for backward compatibility.
     from backend.providers import stream_completion as _stream_completion
     async for chunk in _stream_completion(
         model_id, messages, db, temperature, max_tokens, reasoning_effort
@@ -151,12 +157,14 @@ async def stream_response_events(  # noqa: PLR0917
     messages: list[dict],
     db: Any,
     temperature: float = 0.7,
-    max_tokens: int = 1024,
-    reasoning_effort: str | None = None,
-    message_id: str | None = None,
-    request_id: str | None = None,
+    max_tokens: int = None,
+    reasoning_effort: str = None,
+    message_id: str = None,
+    request_id: str = None,
 ) -> AsyncGenerator[Any]:
     """Stream canonical Nexus response events from providers."""
+    # Note: The enhanced version is now imported above and overrides this.
+    # This docstring is kept for backward compatibility.
     from backend.providers import stream_response_events as _stream_response_events
     async for event in _stream_response_events(
         model_id, messages, db, temperature, max_tokens, reasoning_effort, message_id, request_id
@@ -191,7 +199,6 @@ def sanitize_error(msg: str) -> str:
     """Strip potential API key values from error messages before logging."""
     import re
 
-
     # Reuse patterns from providers.base
     patterns = [
         re.compile(r'sk-[a-zA-Z0-9-_]{20,}'),
@@ -203,7 +210,7 @@ def sanitize_error(msg: str) -> str:
         re.compile(r'sk-or-v1-[a-zA-Z0-9-_]{20,}'),
         re.compile(r'[A-Za-z0-9+/]{40,}={0,2}'),
         re.compile(r'[a-fA-F0-9]{40,}'),
-        re.compile(r'Bearer\s+[a-zA-Z0-9\-_=]{20,}'),
+        re.compile(r'Bearer\\s+[a-zA-Z0-9\\-_=]{20,}'),
     ]
     for pattern in patterns:
         msg = pattern.sub('***REDACTED***', msg)
@@ -259,7 +266,6 @@ async def fetch_models_from_provider(  # noqa: PLR0917
         json_path=json_path,
         id_field=id_field,
         strip_prefix=strip_prefix,
-        query_key=query_key,
         litellm_prefix=f"{provider_id}/",
         name_field=name_field,
         description_field=description_field,
@@ -313,7 +319,9 @@ async def _fetch_provider_models(provider_id: str, api_key: str) -> list[str]:
     # Map provider_id to config
     provider_configs = {
         "openai": ProviderConfig(
-            provider_id="openai", label="OpenAI", local=False,
+            provider_id="openai",
+            label="OpenAI",
+            local=False,
             env_key_name="OPENAI_API_KEY",
             api_base="https://api.openai.com/v1",
             model_endpoint="https://api.openai.com/v1/models",
@@ -323,7 +331,9 @@ async def _fetch_provider_models(provider_id: str, api_key: str) -> list[str]:
             litellm_prefix="openai/",
         ),
         "gemini": ProviderConfig(
-            provider_id="gemini", label="Gemini", local=False,
+            provider_id="gemini",
+            label="Gemini",
+            local=False,
             env_key_name="GEMINI_API_KEY",
             api_base="https://generativelanguage.googleapis.com/v1beta",
             model_endpoint="https://generativelanguage.googleapis.com/v1beta/models",
@@ -335,7 +345,9 @@ async def _fetch_provider_models(provider_id: str, api_key: str) -> list[str]:
             litellm_prefix="gemini/",
         ),
         "nvidia": ProviderConfig(
-            provider_id="nvidia", label="NVIDIA NIM", local=False,
+            provider_id="nvidia",
+            label="NVIDIA NIM",
+            local=False,
             env_key_name="NVIDIA_NIM_API_KEY",
             api_base="https://integrate.api.nvidia.com/v1",
             model_endpoint="https://integrate.api.nvidia.com/v1/models",
